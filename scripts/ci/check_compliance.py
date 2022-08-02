@@ -65,9 +65,9 @@ def get_shas(refspec):
     :param refspec:
     :return:
     """
-    return git('rev-list',
-               '--max-count={}'.format(-1 if "." in refspec else 1),
-               refspec).split()
+    return git(
+        'rev-list', f'--max-count={-1 if "." in refspec else 1}', refspec
+    ).split()
 
 
 class MyCase(TestCase):
@@ -149,7 +149,7 @@ class ComplianceTest:
         """
         if not self.case.result:
             # First reported failure
-            self.case.result = Failure(self.name + " issues", "failure")
+            self.case.result = Failure(f"{self.name} issues", "failure")
             self.case.result._elem.text = msg.rstrip()
         else:
             # If there are multiple Failures, concatenate their messages
@@ -200,7 +200,7 @@ class CheckPatch(ComplianceTest):
         checkpatch = os.path.join(ZEPHYR_BASE or GIT_TOP, 'scripts',
                                   'checkpatch.pl')
         if not os.path.exists(checkpatch):
-            self.skip(checkpatch + " not found")
+            self.skip(f"{checkpatch} not found")
 
         # git diff's output doesn't depend on the current (sub)directory
         diff = subprocess.Popen(('git', 'diff', COMMIT_RANGE),
@@ -253,7 +253,7 @@ class KconfigCheck(ComplianceTest):
         except subprocess.CalledProcessError as ex:
             self.error(ex.output)
 
-        modules_dir = ZEPHYR_BASE + '/modules'
+        modules_dir = f'{ZEPHYR_BASE}/modules'
         modules = [name for name in os.listdir(modules_dir) if
                    os.path.exists(os.path.join(modules_dir, name, 'Kconfig'))]
 
@@ -262,10 +262,10 @@ class KconfigCheck(ComplianceTest):
 
         with open(modules_file, 'w') as fp_module_file:
             for module in modules:
-                fp_module_file.write("ZEPHYR_{}_KCONFIG = {}\n".format(
-                    re.sub('[^a-zA-Z0-9]', '_', module).upper(),
-                    modules_dir + '/' + module + '/Kconfig'
-                ))
+                fp_module_file.write(
+                    f"ZEPHYR_{re.sub('[^a-zA-Z0-9]', '_', module).upper()}_KCONFIG = {modules_dir}/{module}/Kconfig\n"
+                )
+
             fp_module_file.write(content)
 
     def write_kconfig_soc(self):
@@ -310,7 +310,7 @@ osource "{ZEPHYR_BASE}/soc/$(ARCH)/*/Kconfig"\n')
         # used
         kconfig_path = os.path.join(ZEPHYR_BASE, "scripts", "kconfig")
         if not os.path.exists(kconfig_path):
-            self.error(kconfig_path + " not found")
+            self.error(f"{kconfig_path} not found")
 
         sys.path.insert(0, kconfig_path)
         # Import globally so that e.g. kconfiglib.Symbol can be referenced in
@@ -377,23 +377,13 @@ entries, then bump the 'max_top_items' variable in {}.
 """.format(max_top_items, n_top_items, __file__))
 
     def check_no_pointless_menuconfigs(self, kconf):
-        # Checks that there are no pointless 'menuconfig' symbols without
-        # children in the Kconfig files
-
-        bad_mconfs = []
-        for node in kconf.node_iter():
-            # 'kconfiglib' is global
-            # pylint: disable=undefined-variable
-
-            # Avoid flagging empty regular menus and choices, in case people do
-            # something with 'osource' (could happen for 'menuconfig' symbols
-            # too, though it's less likely)
-            if node.is_menuconfig and not node.list and \
-               isinstance(node.item, kconfiglib.Symbol):
-
-                bad_mconfs.append(node)
-
-        if bad_mconfs:
+        if bad_mconfs := [
+            node
+            for node in kconf.node_iter()
+            if node.is_menuconfig
+            and not node.list
+            and isinstance(node.item, kconfiglib.Symbol)
+        ]:
             self.add_failure("""\
 Found pointless 'menuconfig' symbols without children. Use regular 'config'
 symbols instead. See
@@ -407,10 +397,9 @@ https://docs.zephyrproject.org/latest/guides/kconfig/tips.html#menuconfig-symbol
         Checks that there are no references to undefined Kconfig symbols within
         the Kconfig files
         """
-        undef_ref_warnings = "\n\n\n".join(warning for warning in kconf.warnings
-                                           if "undefined symbol" in warning)
-
-        if undef_ref_warnings:
+        if undef_ref_warnings := "\n\n\n".join(
+            warning for warning in kconf.warnings if "undefined symbol" in warning
+        ):
             self.add_failure("Undefined Kconfig symbols:\n\n"
                              + undef_ref_warnings)
 
@@ -465,9 +454,9 @@ https://docs.zephyrproject.org/latest/guides/kconfig/tips.html#menuconfig-symbol
             for sym_name in re.findall(regex, line):
                 sym_name = sym_name[7:]  # Strip CONFIG_
                 if sym_name not in defined_syms and \
-                   sym_name not in UNDEF_KCONFIG_WHITELIST:
+                       sym_name not in UNDEF_KCONFIG_WHITELIST:
 
-                    undef_to_locs[sym_name].append("{}:{}".format(path, lineno))
+                    undef_to_locs[sym_name].append(f"{path}:{lineno}")
 
         if not undef_to_locs:
             return
@@ -624,16 +613,18 @@ class Codeowners(ComplianceTest):
                         (lineno, line))
                     continue
 
-                git_patrn = match.group(1)
+                git_patrn = match[1]
                 glob = self.git_pattern_to_glob(git_patrn)
-                files = []
-                for abs_path in top_path.glob(glob):
-                    # comparing strings is much faster later
-                    files.append(str(abs_path.relative_to(top_path)))
+                files = [
+                    str(abs_path.relative_to(top_path))
+                    for abs_path in top_path.glob(glob)
+                ]
 
                 if not files:
-                    self.add_failure("Path '{}' not found in the tree but is listed in "
-                                     "CODEOWNERS".format(git_patrn))
+                    self.add_failure(
+                        f"Path '{git_patrn}' not found in the tree but is listed in CODEOWNERS"
+                    )
+
 
                 pattern2files[git_patrn] = files
 
@@ -644,16 +635,11 @@ class Codeowners(ComplianceTest):
         leading nor a trailing slash.
         """
 
-        if git_pattern.startswith("/"):
-            ret = git_pattern[1:]
-        else:
-            ret = "**/" + git_pattern
-
+        ret = git_pattern[1:] if git_pattern.startswith("/") else f"**/{git_pattern}"
         if git_pattern.endswith("/"):
-            ret = ret + "**/*"
+            ret = f"{ret}**/*"
         elif os.path.isdir(os.path.join(GIT_TOP, ret)):
-            self.add_failure("Expected '/' after directory '{}' "
-                             "in CODEOWNERS".format(ret))
+            self.add_failure(f"Expected '/' after directory '{ret}' in CODEOWNERS")
 
         return ret
 
@@ -775,16 +761,19 @@ failure.
         # be simplified to 'source "Kconfig[.zephyr]"'
 
         with open(os.path.join(GIT_TOP, fname), encoding="utf-8") as f:
-            # Look for e.g. rsource as well, for completeness
-            match = re.search(
+            if match := re.search(
                 r'^\s*(?:o|r|or)?source\s*"\$\(?ZEPHYR_BASE\)?/(Kconfig(?:\.zephyr)?)"',
-                f.read(), re.MULTILINE)
-
-            if match:
-                self.add_failure("""
+                f.read(),
+                re.MULTILINE,
+            ):
+                self.add_failure(
+                    """
 Redundant 'source "$(ZEPHYR_BASE)/{0}" in '{1}'. Just do 'source "{0}"'
 instead. The $srctree environment variable already points to the Zephyr root,
-and all 'source's are relative to it.""".format(match.group(1), fname))
+and all 'source's are relative to it.""".format(
+                        match[1], fname
+                    )
+                )
 
     def check_redundant_document_separator(self, fname):
         # Looks for redundant '...' document separators in bindings
@@ -802,16 +791,16 @@ concatenated together, so no document separators are needed.""")
             contents = f.read()
 
         if not contents.endswith("\n"):
-            self.add_failure("Missing newline at end of '{}'. Check your text "
-                             "editor settings.".format(fname))
+            self.add_failure(
+                f"Missing newline at end of '{fname}'. Check your text editor settings."
+            )
+
 
         if contents.startswith("\n"):
-            self.add_failure("Please remove blank lines at start of '{}'"
-                             .format(fname))
+            self.add_failure(f"Please remove blank lines at start of '{fname}'")
 
         if contents.endswith("\n\n"):
-            self.add_failure("Please remove blank lines at end of '{}'"
-                             .format(fname))
+            self.add_failure(f"Please remove blank lines at end of '{fname}'")
 
 
 class GitLint(ComplianceTest):
@@ -826,14 +815,16 @@ class GitLint(ComplianceTest):
     def run(self):
         # By default gitlint looks for .gitlint configuration only in
         # the current directory
-        proc = subprocess.Popen('gitlint --commits ' + COMMIT_RANGE,
-                                stdout=subprocess.PIPE, stderr=subprocess.STDOUT,
-                                shell=True, cwd=GIT_TOP)
+        proc = subprocess.Popen(
+            f'gitlint --commits {COMMIT_RANGE}',
+            stdout=subprocess.PIPE,
+            stderr=subprocess.STDOUT,
+            shell=True,
+            cwd=GIT_TOP,
+        )
 
-        msg = ""
-        if proc.wait() != 0:
-            msg = proc.stdout.read()
 
+        msg = proc.stdout.read() if proc.wait() != 0 else ""
         if msg != "":
             self.add_failure(msg.decode("utf-8"))
 
@@ -858,7 +849,7 @@ class PyLint(ComplianceTest):
             # Skip to work around crash in pylint 2.2.2:
             # https://github.com/PyCQA/pylint/issues/2906
             ":!boards/xtensa/intel_s1000_crb/support/create_board_img.py") \
-            .splitlines()
+                .splitlines()
 
         # Filter out everything but Python files. Keep filenames
         # relative (to GIT_TOP) to stay farther from any command line
@@ -867,7 +858,7 @@ class PyLint(ComplianceTest):
         if not py_files:
             return
 
-        pylintcmd = ["pylint", "--rcfile=" + pylintrc] + py_files
+        pylintcmd = ["pylint", f"--rcfile={pylintrc}"] + py_files
         logger.info(cmd2str(pylintcmd))
         try:
             # Run pylint on added/modified Python files
@@ -921,33 +912,28 @@ class Identity(ComplianceTest):
             sha = ""
             parsed_addr = None
             for line in commit.split("\n"):
-                match = re.search(r"^commit\s([^\s]*)", line)
-                if match:
-                    sha = match.group(1)
-                match = re.search(r"^Author:\s(.*)", line)
-                if match:
-                    author = match.group(1)
+                if match := re.search(r"^commit\s([^\s]*)", line):
+                    sha = match[1]
+                if match := re.search(r"^Author:\s(.*)", line):
+                    author = match[1]
                     parsed_addr = parseaddr(author)
-                match = re.search(r"signed-off-by:\s(.*)", line, re.IGNORECASE)
-                if match:
-                    signed.append(match.group(1))
+                if match := re.search(
+                    r"signed-off-by:\s(.*)", line, re.IGNORECASE
+                ):
+                    signed.append(match[1])
 
-            error1 = "%s: author email (%s) needs to match one of the signed-off-by entries." % (
-                sha, author)
-            error2 = "%s: author email (%s) does not follow the syntax: First Last <email>." % (
-                sha, author)
-            error3 = "%s: author email (%s) must be a real email and cannot end in @users.noreply.github.com" % (
-                sha, author)
+            error1 = f"{sha}: author email ({author}) needs to match one of the signed-off-by entries."
+
+            error2 = f"{sha}: author email ({author}) does not follow the syntax: First Last <email>."
+
+            error3 = f"{sha}: author email ({author}) must be a real email and cannot end in @users.noreply.github.com"
+
             failure = None
             if author not in signed:
                 failure = error1
 
             if not parsed_addr or len(parsed_addr[0].split(" ")) < 2:
-                if not failure:
-
-                    failure = error2
-                else:
-                    failure = failure + "\n" + error2
+                failure = failure + "\n" + error2 if failure else error2
             elif parsed_addr[1].endswith("@users.noreply.github.com"):
                 failure = error3
 
@@ -970,7 +956,7 @@ def init_logs(cli_arg):
 
     logger = logging.getLogger('')
     logger.addHandler(console)
-    logger.setLevel(cli_arg if cli_arg else level)
+    logger.setLevel(cli_arg or level)
 
     logging.info("Log init completed, level=%s",
                  logging.getLevelName(logger.getEffectiveLevel()))
@@ -1037,11 +1023,10 @@ def _main(args):
             # repo). Since that earlier pass might've posted an error to
             # GitHub, avoid generating a GitHub comment here, by avoiding
             # sys.exit() (which gets caught in main()).
-            print("error: '{}' not found".format(args.previous_run),
-                  file=sys.stderr)
+            print(f"error: '{args.previous_run}' not found", file=sys.stderr)
             return 1
 
-        logging.info("Loading previous results from " + args.previous_run)
+        logging.info(f"Loading previous results from {args.previous_run}")
         for loaded_suite in JUnitXml.fromfile(args.previous_run):
             suite = loaded_suite
             break
@@ -1057,7 +1042,7 @@ def _main(args):
             continue
 
         if testcase.name in args.exclude_module:
-            print("Skipping " + testcase.name)
+            print(f"Skipping {testcase.name}")
             continue
 
         test = testcase()
@@ -1092,7 +1077,7 @@ def _main(args):
     n_fails = len(failed_cases)
 
     if n_fails:
-        print("{} checks failed".format(n_fails))
+        print(f"{n_fails} checks failed")
         for case in failed_cases:
             # not clear why junitxml doesn't clearly expose the most
             # important part of its underlying etree.Element
@@ -1117,8 +1102,10 @@ def main():
     except BaseException:
         # Catch BaseException instead of Exception to include stuff like
         # SystemExit (raised by sys.exit())
-        print("Python exception in `{}`:\n\n"
-              "```\n{}\n```".format(__file__, traceback.format_exc()))
+        print(
+            f"Python exception in `{__file__}`:\n\n```\n{traceback.format_exc()}\n```"
+        )
+
 
         raise
 
@@ -1136,7 +1123,7 @@ def err(msg):
     cmd = sys.argv[0]  # Empty if missing
     if cmd:
         cmd += ": "
-    sys.exit(cmd + "error: " + msg)
+    sys.exit(f"{cmd}error: {msg}")
 
 
 if __name__ == "__main__":

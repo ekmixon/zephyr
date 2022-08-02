@@ -22,19 +22,14 @@ def parse_args():
     arg_parser.add_argument("-x", "--hexdump", default=False, action='store_true',
                             help="Display hexdump")
 
-    args = arg_parser.parse_args()
-
-    return args
+    return arg_parser.parse_args()
 
 def main():
     """ Main Entry Point """
 
     args = parse_args()
 
-    log_level = logging.INFO
-    if args.debug:
-        log_level = logging.DEBUG
-
+    log_level = logging.DEBUG if args.debug else logging.INFO
     logging.basicConfig(level=log_level, format="%(message)s")
 
     dev = Device()

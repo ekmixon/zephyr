@@ -195,7 +195,7 @@ def test_include_filters():
         assert set(binding.prop2specs.keys()) == {'x'}  # 'x' is allowed
 
         binding = edtlib.Binding("test-bindings-include/empty-allowlist.yaml", fname2path)
-        assert set(binding.prop2specs.keys()) == set()  # nothing is allowed
+        assert not set(binding.prop2specs.keys())
 
         binding = edtlib.Binding("test-bindings-include/blocklist.yaml", fname2path)
         assert set(binding.prop2specs.keys()) == {'y', 'z'}  # 'x' is blocked
@@ -303,8 +303,11 @@ def test_props():
     '''Test Node.props (derived from DT and 'properties:' in the binding)'''
     with from_here():
         edt = edtlib.EDT("test.dts", ["test-bindings"])
-    filenames = {i: hpath(f'test-bindings/phandle-array-controller-{i}.yaml')
-                 for i in range(0, 4)}
+    filenames = {
+        i: hpath(f'test-bindings/phandle-array-controller-{i}.yaml')
+        for i in range(4)
+    }
+
 
     assert str(edt.get_node("/props").props["int"]) == \
         "<Property, name: int, type: int, value: 1>"

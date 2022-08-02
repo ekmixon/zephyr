@@ -37,9 +37,9 @@ def main():
 
     fd = open("key.c", "w")
 
-    pem_file = args.device + "-private.pem"
-    cert_file = args.device + "-cert.pem"
-    der_file = args.device + "-private.der"
+    pem_file = f"{args.device}-private.pem"
+    cert_file = f"{args.device}-cert.pem"
+    der_file = f"{args.device}-private.der"
 
     if args.ecdsa:
         print("Generating ecdsa private key")
@@ -60,8 +60,23 @@ def main():
     print("Generating certificate")
 
     try:
-        subprocess.check_call(["openssl", "req", "-new", "-x509", "-key", pem_file, "-out",
-            cert_file, "-days", "1000000", "-subj", "/CN=" + args.device])
+        subprocess.check_call(
+            [
+                "openssl",
+                "req",
+                "-new",
+                "-x509",
+                "-key",
+                pem_file,
+                "-out",
+                cert_file,
+                "-days",
+                "1000000",
+                "-subj",
+                f"/CN={args.device}",
+            ]
+        )
+
 
     except subprocess.CalledProcessError as e:
         print(e.output)
@@ -82,7 +97,7 @@ def main():
             sys.exit("failed to parse ECDSA private key")
 
         tmp = split_string(tmp, 2)
-        output = ["0x" + s for s in tmp]
+        output = [f"0x{s}" for s in tmp]
         output = ', '.join(output)
 
     else:
@@ -110,7 +125,7 @@ def main():
     fd.write(output)
     fd.write("};\n\n")
 
-    fd.write("unsigned int zepfull_private_der_len = " + str(key_len) + ";\n")
+    fd.write(f"unsigned int zepfull_private_der_len = {key_len}" + ";\n")
 
 if __name__ == "__main__":
     main()

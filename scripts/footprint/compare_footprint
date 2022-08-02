@@ -81,22 +81,20 @@ def parse_args():
     return parser.parse_args()
 
 def get_git_commit(commit):
-    commit_id = None
-    proc = subprocess.Popen('git rev-parse %s' % commit, stdout=subprocess.PIPE,
-                            cwd=os.environ.get('ZEPHYR_BASE'), shell=True)
-    if proc.wait() == 0:
-        commit_id = proc.stdout.read().decode("utf-8").strip()
-    return commit_id
+    proc = subprocess.Popen(
+        f'git rev-parse {commit}',
+        stdout=subprocess.PIPE,
+        cwd=os.environ.get('ZEPHYR_BASE'),
+        shell=True,
+    )
+
+    return proc.stdout.read().decode("utf-8").strip() if proc.wait() == 0 else None
 
 def sanity_results_filename(commit=None, cwd=os.environ.get('ZEPHYR_BASE')):
     if not commit:
         file_name = "tmp.csv"
     else:
-        if commit == RELEASE_DATA:
-            file_name = RELEASE_DATA
-        else:
-            file_name = "%s.csv" % commit
-
+        file_name = RELEASE_DATA if commit == RELEASE_DATA else f"{commit}.csv"
     return os.path.join(cwd,'scripts', 'sanity_chk', file_name)
 
 def git_checkout(commit, cwd=os.environ.get('ZEPHYR_BASE')):
@@ -105,10 +103,14 @@ def git_checkout(commit, cwd=os.environ.get('ZEPHYR_BASE')):
     if proc.wait() != 0:
         raise Exception("Cannot continue, you have unstaged changes in your working tree")
 
-    proc = subprocess.Popen('git reset %s --hard' % commit,
-                            stdout=subprocess.PIPE,
-                            stderr=subprocess.STDOUT,
-                            cwd=cwd, shell=True)
+    proc = subprocess.Popen(
+        f'git reset {commit} --hard',
+        stdout=subprocess.PIPE,
+        stderr=subprocess.STDOUT,
+        cwd=cwd,
+        shell=True,
+    )
+
     if proc.wait() == 0:
         return True
     else:
@@ -121,7 +123,7 @@ def run_sanity_footprint(commit=None, cwd=os.environ.get('ZEPHYR_BASE'),
         output_file = sanity_results_filename(commit)
     cmd = '/bin/bash -c "source ./zephyr-env.sh && twister'
     cmd += ' +scripts/sanity_chk/sanity_compare.args -o %s"' % output_file
-    logger.debug('Sanity (%s)   %s' %(commit, cmd))
+    logger.debug(f'Sanity ({commit})   {cmd}')
 
     proc = subprocess.Popen(cmd, stdout=subprocess.PIPE,
                             cwd=cwd, shell=True)
@@ -135,16 +137,16 @@ def run_sanity_footprint(commit=None, cwd=os.environ.get('ZEPHYR_BASE'),
     raise Exception("Couldn't build footprint apps in commit %s" % commit)
 
 def run_footprint_build(commit=None):
-    logging.debug("footprint build for %s" % commit)
+    logging.debug(f"footprint build for {commit}")
     if not commit:
         run_sanity_footprint()
     else:
-        cmd = "git clone --no-hardlinks %s" % os.environ.get('ZEPHYR_BASE')
+        cmd = f"git clone --no-hardlinks {os.environ.get('ZEPHYR_BASE')}"
         tmp_location = os.path.join(tempfile.gettempdir(),
                                 os.path.basename(os.environ.get('ZEPHYR_BASE')))
         if os.path.exists(tmp_location):
             shutil.rmtree(tmp_location)
-        logging.debug("clonning into %s" % tmp_location)
+        logging.debug(f"clonning into {tmp_location}")
         proc = subprocess.Popen(cmd, stdout=subprocess.PIPE,
                                 stderr=subprocess.STDOUT,
                                 cwd=tempfile.gettempdir(), shell=True)
@@ -160,8 +162,7 @@ def read_sanity_report(filename):
     data = []
     with open(filename) as fp:
         tmp = csv.DictReader(fp)
-        for row in tmp:
-            data.append(row)
+        data.extend(iter(tmp))
     return data
 
 def get_footprint_results(commit=None):
@@ -174,24 +175,16 @@ def get_footprint_results(commit=None):
 def tree_changes():
     proc = subprocess.Popen('git diff --quiet', stdout=subprocess.PIPE,
                             cwd=os.environ.get('ZEPHYR_BASE'), shell=True)
-    if proc.wait() != 0:
-        return True
-    return False
+    return proc.wait() != 0
 
 def get_default_current_commit():
-    if tree_changes():
-        return None
-    else:
-        return get_git_commit('HEAD')
+    return None if tree_changes() else get_git_commit('HEAD')
 
 def get_default_base_commit(current_commit):
     if not current_commit:
-        if tree_changes():
-            return get_git_commit('HEAD')
-        else:
-            return get_git_commit('HEAD~1')
+        return get_git_commit('HEAD') if tree_changes() else get_git_commit('HEAD~1')
     else:
-        return get_git_commit('%s~1'%current_commit)
+        return get_git_commit(f'{current_commit}~1')
 
 def build_history(b_commit=None, c_commit=None):
     if not GIT_ENABLED:
@@ -199,23 +192,24 @@ def build_history(b_commit=None, c_commit=None):
         current_commit = None
         base_commit = RELEASE_DATA
     else:
-        if not c_commit:
-            current_commit = get_default_current_commit()
-        else:
-            current_commit = get_git_commit(c_commit)
+        current_commit = (
+            get_git_commit(c_commit)
+            if c_commit
+            else get_default_current_commit()
+        )
 
-        if not b_commit:
-            base_commit = get_default_base_commit(current_commit)
-        else:
-            base_commit = get_git_commit(b_commit)
+        base_commit = (
+            get_git_commit(b_commit)
+            if b_commit
+            else get_default_base_commit(current_commit)
+        )
 
     if not base_commit:
         logger.error("Cannot resolve base commit")
         return
 
-    logger.info("Base:    %s" % base_commit)
-    logger.info("Current: %s" % (current_commit if current_commit else
-                    'working space'))
+    logger.info(f"Base:    {base_commit}")
+    logger.info(f"Current: {current_commit or 'working space'}")
 
     current_results = get_footprint_results(current_commit)
     base_results = get_footprint_results(base_commit)
@@ -231,21 +225,18 @@ def compare_results(base_results, current_results):
     for type, data in {'base': base_results, 'current': current_results}.items():
         metrics[type] = {}
         for row in data:
-            d = {}
-            for m, mtype in interesting_metrics:
-                if row[m]:
-                    d[m] = mtype(row[m])
-            if not row["test"] in metrics[type]:
+            d = {m: mtype(row[m]) for m, mtype in interesting_metrics if row[m]}
+            if row["test"] not in metrics[type]:
                 metrics[type][row["test"]] = {}
             metrics[type][row["test"]][row["platform"]] = d
 
     for test, platforms in metrics['current'].items():
-        if not test in metrics['base']:
+        if test not in metrics['base']:
             continue
         tests = {}
 
         for platform, test_data in platforms.items():
-            if not platform in metrics['base'][test]:
+            if platform not in metrics['base'][test]:
                 continue
             golden_metric = metrics['base'][test][platform]
             tmp = {}

@@ -56,8 +56,8 @@ class CoredumpLogFile:
         self.fd = None
 
         self.log_hdr = None
-        self.arch_data = list()
-        self.memory_regions = list()
+        self.arch_data = []
+        self.memory_regions = []
 
     def open(self):
         self.fd = open(self.logfile, "rb")

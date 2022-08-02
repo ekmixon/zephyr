@@ -19,14 +19,9 @@ class GdbStub(abc.ABC):
         self.socket = None
         self.gdb_signal = None
 
-        mem_regions = list()
+        mem_regions = list(logfile.get_memory_regions())
 
-        for r in logfile.get_memory_regions():
-            mem_regions.append(r)
-
-        for r in elffile.get_memory_regions():
-            mem_regions.append(r)
-
+        mem_regions.extend(iter(elffile.get_memory_regions()))
         self.mem_regions = mem_regions
 
     def get_gdb_packet(self):
@@ -76,10 +71,7 @@ class GdbStub(abc.ABC):
         if socket is None:
             return
 
-        checksum = 0
-        for d in data:
-            checksum += d
-
+        checksum = sum(data)
         pkt = b'$' + data + b'#'
 
         checksum = checksum % 256
@@ -176,7 +168,7 @@ class GdbStub(abc.ABC):
             if pkt is None:
                 continue
 
-            pkt_type = pkt[0:1]
+            pkt_type = pkt[:1]
             logger.debug(f"Got packet type: {pkt_type}")
 
             if pkt_type == b'?':

@@ -51,17 +51,15 @@ familyid = 0x0
 
 
 def is_uf2(buf):
-    w = struct.unpack("<II", buf[0:8])
+    w = struct.unpack("<II", buf[:8])
     return w[0] == UF2_MAGIC_START0 and w[1] == UF2_MAGIC_START1
 
 def is_hex(buf):
     try:
-        w = buf[0:30].decode("utf-8")
+        w = buf[:30].decode("utf-8")
     except UnicodeDecodeError:
         return False
-    if w[0] == ':' and re.match(b"^[:0-9a-fA-F\r\n]+$", buf):
-        return True
-    return False
+    return bool(w[0] == ':' and re.match(b"^[:0-9a-fA-F\r\n]+$", buf))
 
 def convert_from_uf2(buf):
     global appstartaddr
@@ -71,27 +69,27 @@ def convert_from_uf2(buf):
     for blockno in range(numblocks):
         ptr = blockno * 512
         block = buf[ptr:ptr + 512]
-        hd = struct.unpack(b"<IIIIIIII", block[0:32])
+        hd = struct.unpack(b"<IIIIIIII", block[:32])
         if hd[0] != UF2_MAGIC_START0 or hd[1] != UF2_MAGIC_START1:
-            print("Skipping block at " + ptr + "; bad magic")
+            print(f"Skipping block at {ptr}; bad magic")
             continue
         if hd[2] & 1:
             # NO-flash flag set; skip block
             continue
         datalen = hd[4]
         if datalen > 476:
-            assert False, "Invalid UF2 data size at " + ptr
+            assert False, f"Invalid UF2 data size at {ptr}"
         newaddr = hd[3]
-        if curraddr == None:
+        if curraddr is None:
             appstartaddr = newaddr
             curraddr = newaddr
         padding = newaddr - curraddr
         if padding < 0:
-            assert False, "Block out of order at " + ptr
+            assert False, f"Block out of order at {ptr}"
         if padding > 10*1024*1024:
-            assert False, "More than 10M of padding needed at " + ptr
+            assert False, f"More than 10M of padding needed at {ptr}"
         if padding % 4 != 0:
-            assert False, "Non-word padding size at " + ptr
+            assert False, f"Non-word padding size at {ptr}"
         while padding > 0:
             padding -= 4
             outp += b"\x00\x00\x00\x00"
@@ -145,7 +143,7 @@ class Block:
         hd = struct.pack("<IIIIIIII",
             UF2_MAGIC_START0, UF2_MAGIC_START1,
             flags, self.addr, 256, blockno, numblocks, familyid)
-        hd += self.bytes[0:256]
+        hd += self.bytes[:256]
         while len(hd) < 512 - 4:
             hd += b"\x00"
         hd += struct.pack("<I", UF2_MAGIC_END)
@@ -175,7 +173,7 @@ def convert_from_hex_to_uf2(buf):
             break
         elif tp == 0:
             addr = upper | (rec[1] << 8) | rec[2]
-            if appstartaddr == None:
+            if appstartaddr is None:
                 appstartaddr = addr
             i = 4
             while i < len(rec) - 1:
@@ -187,7 +185,7 @@ def convert_from_hex_to_uf2(buf):
                 i += 1
     numblocks = len(blocks)
     resfile = b""
-    for i in range(0, numblocks):
+    for i in range(numblocks):
         resfile += blocks[i].encode(i, numblocks)
     return resfile
 
@@ -209,7 +207,7 @@ def get_drives():
         if sys.platform == "darwin":
             rootpath = "/Volumes"
         elif sys.platform == "linux":
-            tmp = rootpath + "/" + os.environ["USER"]
+            tmp = f"{rootpath}/" + os.environ["USER"]
             if os.path.isdir(tmp):
                 rootpath = tmp
         for d in os.listdir(rootpath):
@@ -228,7 +226,7 @@ def get_drives():
 def board_id(path):
     with open(path + INFO_FILE, mode='r') as file:
         file_content = file.read()
-    return re.search("Board-ID: ([^\r\n]*)", file_content).group(1)
+    return re.search("Board-ID: ([^\r\n]*)", file_content)[1]
 
 
 def list_drives():
@@ -247,6 +245,7 @@ def main():
     def error(msg):
         print(msg)
         sys.exit(1)
+
     parser = argparse.ArgumentParser(description='Convert to UF2 or flash directly.')
     parser.add_argument('input', metavar='INPUT', type=str, nargs='?',
                         help='input file (HEX, BIN or UF2)')
@@ -304,8 +303,8 @@ def main():
               (ext, len(outbuf), appstartaddr))
         if args.convert or ext != "uf2":
             drives = []
-            if args.output == None:
-                args.output = "flash." + ext
+            if args.output is None:
+                args.output = f"flash.{ext}"
         else:
             drives = get_drives()
 
@@ -315,8 +314,8 @@ def main():
             if len(drives) == 0:
                 error("No drive to deploy.")
         for d in drives:
-            print("Flashing %s (%s)" % (d, board_id(d)))
-            write_file(d + "/NEW.UF2", outbuf)
+            print(f"Flashing {d} ({board_id(d)})")
+            write_file(f"{d}/NEW.UF2", outbuf)
 
 
 if __name__ == "__main__":

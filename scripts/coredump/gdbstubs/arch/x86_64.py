@@ -128,7 +128,7 @@ class GdbStub_x86_64(GdbStub):
 
         tu = struct.unpack(arch_data_blk_struct, arch_data_blk)
 
-        self.registers = dict()
+        self.registers = {}
 
         self.exception_vector = tu[0]
         self.exception_code = tu[1]

@@ -19,7 +19,7 @@ def retrieve_data(input_file):
     capture_data = False
     reached_end = False
     with open(input_file, 'r') as fp:
-        for line in fp.readlines():
+        for line in fp:
             if re.search("GCOV_COVERAGE_DUMP_START", line):
                 capture_data = True
                 continue
@@ -34,10 +34,10 @@ def retrieve_data(input_file):
             file_name = line.split("<")[0][1:]
             # Remove the trailing new line char
             hex_dump = line.split("<")[1][:-1]
-            extracted_coverage_info.update({file_name: hex_dump})
+            extracted_coverage_info[file_name] = hex_dump
 
     if not reached_end:
-        print("incomplete data captured from %s" % input_file)
+        print(f"incomplete data captured from {input_file}")
     return extracted_coverage_info
 
 
@@ -50,7 +50,7 @@ def create_gcda_files(extracted_coverage_info):
         # if kobject_hash is given for coverage gcovr fails
         # hence skipping it problem only in gcovr v4.1
         if "kobject_hash" in filename:
-            filename = filename[:-4] + "gcno"
+            filename = f"{filename[:-4]}gcno"
             try:
                 os.remove(filename)
             except Exception:

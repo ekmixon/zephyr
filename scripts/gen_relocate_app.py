@@ -149,9 +149,9 @@ def find_sections(filename, full_list_of_sections):
     with open(filename, 'rb') as obj_file_desc:
         full_lib = ELFFile(obj_file_desc)
         if not full_lib:
-            sys.exit("Error parsing file: " + filename)
+            sys.exit(f"Error parsing file: {filename}")
 
-        sections = [x for x in full_lib.iter_sections()]
+        sections = list(full_lib.iter_sections())
 
         for section in sections:
 
@@ -173,7 +173,7 @@ def find_sections(filename, full_list_of_sections):
             # The solution to which is simply assigning a 0 to
             # bss variable and it will go to the required place.
             if ".symtab" in section.name:
-                symbols = [x for x in section.iter_symbols()]
+                symbols = list(section.iter_symbols())
                 for symbol in symbols:
                     if symbol.entry["st_shndx"] == 'SHN_COMMON':
                         warnings.warn("Common variable found. Move "+
@@ -184,7 +184,6 @@ def find_sections(filename, full_list_of_sections):
 
 def assign_to_correct_mem_region(memory_type,
                                  full_list_of_sections, complete_list_of_sections):
-    all_regions = False
     iteration_sections = {"text": False, "rodata": False, "data": False, "bss": False}
     if "_TEXT" in memory_type:
         iteration_sections["text"] = True
@@ -198,9 +197,12 @@ def assign_to_correct_mem_region(memory_type,
     if "_BSS" in memory_type:
         iteration_sections["bss"] = True
         memory_type = memory_type.replace("_BSS", "")
-    if not (iteration_sections["data"] or iteration_sections["bss"] or
-            iteration_sections["text"] or iteration_sections["rodata"]):
-        all_regions = True
+    all_regions = (
+        not iteration_sections["data"]
+        and not iteration_sections["bss"]
+        and not iteration_sections["text"]
+        and not iteration_sections["rodata"]
+    )
 
     pos = memory_type.find('_')
     if pos in range(len(memory_type)):
@@ -229,10 +231,9 @@ def assign_to_correct_mem_region(memory_type,
 
 
 def print_linker_sections(list_sections):
-    print_string = ''
-    for section in sorted(list_sections):
-        print_string += PRINT_TEMPLATE.format(section)
-    return print_string
+    return ''.join(
+        PRINT_TEMPLATE.format(section) for section in sorted(list_sections)
+    )
 
 
 def string_create_helper(region, memory_type,
@@ -250,20 +251,16 @@ def string_create_helper(region, memory_type,
             linker_string += tmp
         else:
             if memory_type != 'SRAM' and region == 'rodata':
+                align_size = mpu_align[memory_type] if memory_type in mpu_align.keys() else 0
+                linker_string += LINKER_SECTION_SEQ_MPU.format(memory_type.lower(), region, memory_type.upper(),
+                                                               region.upper(), tmp, load_address_string, align_size)
+            elif memory_type == 'SRAM' and region == 'text':
                 align_size = 0
-                if memory_type in mpu_align.keys():
-                    align_size = mpu_align[memory_type]
-
                 linker_string += LINKER_SECTION_SEQ_MPU.format(memory_type.lower(), region, memory_type.upper(),
                                                                region.upper(), tmp, load_address_string, align_size)
             else:
-                if memory_type == 'SRAM' and region == 'text':
-                    align_size = 0
-                    linker_string += LINKER_SECTION_SEQ_MPU.format(memory_type.lower(), region, memory_type.upper(),
-                                                                   region.upper(), tmp, load_address_string, align_size)
-                else:
-                    linker_string += LINKER_SECTION_SEQ.format(memory_type.lower(), region, memory_type.upper(),
-                                                               region.upper(), tmp, load_address_string)
+                linker_string += LINKER_SECTION_SEQ.format(memory_type.lower(), region, memory_type.upper(),
+                                                           region.upper(), tmp, load_address_string)
             if load_address_in_flash:
                 linker_string += SECTION_LOAD_MEMORY_SEQ.format(memory_type.lower(), region, memory_type.upper(),
                                                                 region.upper())
@@ -386,16 +383,17 @@ def get_obj_filename(searchpath, filename):
 
     for dirpath, _, files in os.walk(searchpath):
         for filename1 in files:
-            if filename1 == obj_filename:
-                if filename.split("/")[-2] in dirpath.split("/")[-1]:
-                    fullname = os.path.join(dirpath, filename1)
-                    return fullname
+            if (
+                filename1 == obj_filename
+                and filename.split("/")[-2] in dirpath.split("/")[-1]
+            ):
+                return os.path.join(dirpath, filename1)
 
 
 # Create a dict with key as memory type and files as a list of values.
 def create_dict_wrt_mem():
     # need to support wild card *
-    rel_dict = dict()
+    rel_dict = {}
     if args.input_rel_dict == '':
         sys.exit("Disable CONFIG_CODE_DATA_RELOCATION if no file needs relocation")
     for line in args.input_rel_dict.split(';'):
@@ -403,7 +401,7 @@ def create_dict_wrt_mem():
 
         file_name_list = glob.glob(file_name)
         if not file_name_list:
-            warnings.warn("File: "+file_name+" Not found")
+            warnings.warn(f"File: {file_name} Not found")
             continue
         if mem_region == '':
             continue
@@ -436,12 +434,8 @@ def main():
         full_list_of_sections = {"text": [], "rodata": [], "data": [], "bss": []}
 
         for filename in files:
-            obj_filename = get_obj_filename(searchpath, filename)
-            # the obj file wasn't found. Probably not compiled.
-            if not obj_filename:
-                continue
-
-            full_list_of_sections = find_sections(obj_filename, full_list_of_sections)
+            if obj_filename := get_obj_filename(searchpath, filename):
+                full_list_of_sections = find_sections(obj_filename, full_list_of_sections)
 
         # cleanup and attach the sections to the memory type after cleanup.
         complete_list_of_sections = assign_to_correct_mem_region(memory_type,

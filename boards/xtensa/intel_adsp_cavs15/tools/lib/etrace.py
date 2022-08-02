@@ -15,10 +15,7 @@ from logtool import Loglist
 
 
 def is_ascii(c):
-    if 32 <= c <= 126:
-        return str(chr(c))
-    else:
-        return "."
+    return chr(c) if 32 <= c <= 126 else "."
 
 
 class Etrace:
@@ -48,7 +45,7 @@ class Etrace:
 
         for r in data:
             s = s + ("%02X " % r)
-            a = a + ("%s" % is_ascii(r))
+            a = a + f"{is_ascii(r)}"
             offset += 1
 
             if not i % 16:

@@ -65,11 +65,9 @@ def is_symbol_in_ranges(sym, ranges):
     Given a list of start/end addresses, test if the symbol
     lies within any of these address ranges.
     """
-    for bound in ranges:
-        if bound['start'] <= sym['st_value'] <= bound['end']:
-            return True
-
-    return False
+    return any(
+        bound['start'] <= sym['st_value'] <= bound['end'] for bound in ranges
+    )
 
 
 def get_die_mapped_address(die, parser, dwarfinfo):
@@ -77,30 +75,27 @@ def get_die_mapped_address(die, parser, dwarfinfo):
     low = None
     high = None
 
-    if die.tag == 'DW_TAG_variable':
-        if 'DW_AT_location' in die.attributes:
-            loc_attr = die.attributes['DW_AT_location']
-            if parser.attribute_has_location(loc_attr, die.cu['version']):
-                loc = parser.parse_from_attribute(loc_attr, die.cu['version'])
-                if isinstance(loc, LocationExpr):
-                    addr = describe_DWARF_expr(loc.loc_expr,
-                                               dwarfinfo.structs)
+    if die.tag == 'DW_TAG_variable' and 'DW_AT_location' in die.attributes:
+        loc_attr = die.attributes['DW_AT_location']
+        if parser.attribute_has_location(loc_attr, die.cu['version']):
+            loc = parser.parse_from_attribute(loc_attr, die.cu['version'])
+            if isinstance(loc, LocationExpr):
+                addr = describe_DWARF_expr(loc.loc_expr,
+                                           dwarfinfo.structs)
 
-                    matcher = DT_LOCATION.match(addr)
-                    if matcher:
-                        low = int(matcher.group(1), 16)
-                        high = low + 1
+                if matcher := DT_LOCATION.match(addr):
+                    low = int(matcher.group(1), 16)
+                    high = low + 1
 
-    if die.tag == 'DW_TAG_subprogram':
-        if 'DW_AT_low_pc' in die.attributes:
-            low = die.attributes['DW_AT_low_pc'].value
+    if die.tag == 'DW_TAG_subprogram' and 'DW_AT_low_pc' in die.attributes:
+        low = die.attributes['DW_AT_low_pc'].value
 
-            high_pc = die.attributes['DW_AT_high_pc']
-            high_pc_class = describe_form_class(high_pc.form)
-            if high_pc_class == 'address':
-                high = high_pc.value
-            elif high_pc_class == 'constant':
-                high = low + high_pc.value
+        high_pc = die.attributes['DW_AT_high_pc']
+        high_pc_class = describe_form_class(high_pc.form)
+        if high_pc_class == 'address':
+            high = high_pc.value
+        elif high_pc_class == 'constant':
+            high = low + high_pc.value
 
     return low, high
 
@@ -116,11 +111,10 @@ def match_symbol_address(symlist, die, parser, dwarfinfo):
     if low is None:
         return None
 
-    for sym in symlist:
-        if low <= sym['symbol']['st_value'] < high:
-            return sym
-
-    return None
+    return next(
+        (sym for sym in symlist if low <= sym['symbol']['st_value'] < high),
+        None,
+    )
 
 
 def get_symbols(elf, addr_ranges):
@@ -128,9 +122,9 @@ def get_symbols(elf, addr_ranges):
     Fetch the symbols from the symbol table and put them
     into ROM, RAM buckets.
     """
-    rom_syms = dict()
-    ram_syms = dict()
-    unassigned_syms = dict()
+    rom_syms = {}
+    ram_syms = {}
+    unassigned_syms = {}
 
     rom_addr_ranges = addr_ranges['rom']
     ram_addr_ranges = addr_ranges['ram']
@@ -150,24 +144,21 @@ def get_symbols(elf, addr_ranges):
                 # If symbol is in ROM area?
                 if is_symbol_in_ranges(sym, rom_addr_ranges):
                     if sym.name not in rom_syms:
-                        rom_syms[sym.name] = list()
+                        rom_syms[sym.name] = []
                     rom_syms[sym.name].append(entry)
                     found_sec = True
 
                 # If symbol is in RAM area?
                 if is_symbol_in_ranges(sym, ram_addr_ranges):
                     if sym.name not in ram_syms:
-                        ram_syms[sym.name] = list()
+                        ram_syms[sym.name] = []
                     ram_syms[sym.name].append(entry)
                     found_sec = True
 
                 if not found_sec:
                     unassigned_syms['sym_name'] = entry
 
-    ret = {'rom': rom_syms,
-           'ram': ram_syms,
-           'unassigned': unassigned_syms}
-    return ret
+    return {'rom': rom_syms, 'ram': ram_syms, 'unassigned': unassigned_syms}
 
 
 def get_section_ranges(elf):
@@ -175,8 +166,8 @@ def get_section_ranges(elf):
     Parse ELF header to find out the address ranges of ROM or RAM sections
     and their total sizes.
     """
-    rom_addr_ranges = list()
-    ram_addr_ranges = list()
+    rom_addr_ranges = []
+    ram_addr_ranges = []
     rom_size = 0
     ram_size = 0
 
@@ -193,11 +184,15 @@ def get_section_ranges(elf):
         elif section['sh_type'] == 'SHT_PROGBITS':
             # Sections to be in flash or memory
             flags = section['sh_flags']
-            if (flags & SHF_ALLOC_EXEC) == SHF_ALLOC_EXEC:
+            if (
+                (flags & SHF_ALLOC_EXEC) == SHF_ALLOC_EXEC
+                or flags & SHF_WRITE_ALLOC != SHF_WRITE_ALLOC
+                and (flags & SHF_ALLOC) == SHF_ALLOC
+            ):
                 # Text section
                 rom_addr_ranges.append(bound)
                 rom_size += size
-            elif (flags & SHF_WRITE_ALLOC) == SHF_WRITE_ALLOC:
+            elif flags & SHF_WRITE_ALLOC == SHF_WRITE_ALLOC:
                 # Data occupies both ROM and RAM
                 # since at boot, content is copied from ROM to RAM
                 rom_addr_ranges.append(bound)
@@ -205,16 +200,12 @@ def get_section_ranges(elf):
 
                 ram_addr_ranges.append(bound)
                 ram_size += size
-            elif (flags & SHF_ALLOC) == SHF_ALLOC:
-                # Read only data
-                rom_addr_ranges.append(bound)
-                rom_size += size
-
-    ret = {'rom': rom_addr_ranges,
-           'rom_total_size': rom_size,
-           'ram': ram_addr_ranges,
-           'ram_total_size': ram_size}
-    return ret
+    return {
+        'rom': rom_addr_ranges,
+        'rom_total_size': rom_size,
+        'ram': ram_addr_ranges,
+        'ram_total_size': ram_size,
+    }
 
 
 def get_die_filename(die, lineprog):
@@ -276,13 +267,11 @@ def do_simple_name_matching(elf, symbol_dict, processed):
             sym_name = None
 
             # Process variables
-            if die.tag == 'DW_TAG_variable':
-                # DW_AT_declaration
-
-                # having 'DW_AT_location' means this maps
-                # to an actual address (e.g. not an extern)
-                if 'DW_AT_location' in die.attributes:
-                    sym_name = die.get_full_path()
+            if (
+                die.tag == 'DW_TAG_variable'
+                and 'DW_AT_location' in die.attributes
+            ):
+                sym_name = die.get_full_path()
 
             # Process subprograms (i.e. functions) if they are valid
             if die.tag == 'DW_TAG_subprogram':
@@ -307,7 +296,7 @@ def do_simple_name_matching(elf, symbol_dict, processed):
 
             if sym_name is not None:
                 # Skip DIE with no reference back to a file
-                if not 'DW_AT_decl_file' in die.attributes:
+                if 'DW_AT_decl_file' not in die.attributes:
                     continue
 
                 is_die_mapped = False
@@ -396,7 +385,7 @@ def do_address_range_matching(elf, symbol_dict, processed):
     unmapped_dies = processed['unmapped_dies']
 
     # Group DIEs by compile units
-    cu_list = dict()
+    cu_list = {}
 
     for die in unmapped_dies:
         cu = die.cu
@@ -405,16 +394,13 @@ def do_address_range_matching(elf, symbol_dict, processed):
         cu_list[cu]['dies'].add(die)
 
     # Loop through all compile units
-    for cu in cu_list:
+    for cu, value in cu_list.items():
         lineprog = dwarfinfo.line_program_for_CU(cu)
 
         # Map offsets from DIEs
-        offset_map = dict()
-        for die in cu.iter_DIEs():
-            offset_map[die.offset] = die
-
-        for die in cu_list[cu]['dies']:
-            if not die.tag == 'DW_TAG_subprogram':
+        offset_map = {die.offset: die for die in cu.iter_DIEs()}
+        for die in value['dies']:
+            if die.tag != 'DW_TAG_subprogram':
                 continue
 
             path = None
@@ -428,16 +414,18 @@ def do_address_range_matching(elf, symbol_dict, processed):
             if ('DW_AT_abstract_origin' in die.attributes) or (
                     'DW_AT_specification' in die.attributes):
                 die_ptr = die
-                while path is None:
-                    if not (die_ptr.tag == 'DW_TAG_subprogram') or not (
-                            ('DW_AT_abstract_origin' in die_ptr.attributes) or
-                            ('DW_AT_specification' in die_ptr.attributes)):
-                        break
-
-                    if 'DW_AT_abstract_origin' in die_ptr.attributes:
-                        ofname = 'DW_AT_abstract_origin'
-                    elif 'DW_AT_specification' in die_ptr.attributes:
-                        ofname = 'DW_AT_specification'
+                while path is None and not (
+                    die_ptr.tag != 'DW_TAG_subprogram'
+                    or not (
+                        ('DW_AT_abstract_origin' in die_ptr.attributes)
+                        or ('DW_AT_specification' in die_ptr.attributes)
+                    )
+                ):
+                    ofname = (
+                        'DW_AT_abstract_origin'
+                        if 'DW_AT_abstract_origin' in die_ptr.attributes
+                        else 'DW_AT_specification'
+                    )
 
                     offset = die_ptr.attributes[ofname].value
                     offset += die_ptr.cu.cu_offset
@@ -462,11 +450,13 @@ def do_address_range_matching(elf, symbol_dict, processed):
                         symbol = one_sym['symbol']
                         symaddr = symbol['st_value']
 
-                        if symaddr not in mapped_addresses:
-                            if low <= symaddr < high:
-                                one_sym['mapped_files'].add(path)
-                                mapped_addresses.add(symaddr)
-                                newly_mapped_syms.add(ums)
+                        if (
+                            symaddr not in mapped_addresses
+                            and low <= symaddr < high
+                        ):
+                            one_sym['mapped_files'].add(path)
+                            mapped_addresses.add(symaddr)
+                            newly_mapped_syms.add(ums)
 
     mapped_symbols = mapped_symbols.union(newly_mapped_syms)
     unmapped_symbols = unmapped_symbols.difference(newly_mapped_syms)
@@ -494,12 +484,14 @@ def set_root_path_for_unmapped_symbols(symbol_dict, addr_range, processed):
             symbol = one_sym['symbol']
             symaddr = symbol['st_value']
 
-            if is_symbol_in_ranges(symbol, addr_range):
-                if symaddr not in mapped_addresses:
-                    path = Path(':')
-                    one_sym['mapped_files'].add(path)
-                    mapped_addresses.add(symaddr)
-                    newly_mapped_syms.add(ums)
+            if (
+                is_symbol_in_ranges(symbol, addr_range)
+                and symaddr not in mapped_addresses
+            ):
+                path = Path(':')
+                one_sym['mapped_files'].add(path)
+                mapped_addresses.add(symaddr)
+                newly_mapped_syms.add(ums)
 
     mapped_symbols = mapped_symbols.union(newly_mapped_syms)
     unmapped_symbols = unmapped_symbols.difference(newly_mapped_syms)
@@ -513,13 +505,11 @@ def find_common_path_prefix(symbol_dict):
     Find the common path prefix of all mapped files.
     Must be called before set_root_path_for_unmapped_symbols().
     """
-    paths = list()
+    paths = []
 
     for _, sym in symbol_dict.items():
         for symbol in sym:
-            for file in symbol['mapped_files']:
-                paths.append(file)
-
+            paths.extend(iter(symbol['mapped_files']))
     return os.path.commonpath(paths)
 
 
@@ -545,12 +535,7 @@ def sum_node_children_size(node):
     """
     Calculate the sum of symbol size of all direct children.
     """
-    size = 0
-
-    for child in node.children:
-        size += child.size
-
-    return size
+    return sum(child.size for child in node.children)
 
 
 def generate_any_tree(symbol_dict, total_size, path_prefix):
@@ -584,11 +569,7 @@ def generate_any_tree(symbol_dict, total_size, path_prefix):
         node = None
         parent = root
         for part in path.parts:
-            if cur is None:
-                cur = part
-            else:
-                cur = str(Path(cur, part))
-
+            cur = part if cur is None else str(Path(cur, part))
             results = findall_by_attr(root, cur, name="identifier")
             if results:
                 item = results[0]
@@ -677,8 +658,12 @@ def print_any_tree(root, total_size, depth):
     """
     Print the symbol tree.
     """
-    print('{:101s} {:7s} {:8s}'.format(
-        Fore.YELLOW + "Path", "Size", "%" + Fore.RESET))
+    print(
+        '{:101s} {:7s} {:8s}'.format(
+            f"{Fore.YELLOW}Path", "Size", f"%{Fore.RESET}"
+        )
+    )
+
     print('=' * 110)
     for row in RenderTree(root, childiter=node_sort, maxlevel=depth):
         f = len(row.pre) + len(row.node.name)
@@ -737,13 +722,13 @@ def main():
     init()
 
     assert os.path.exists(args.kernel), "{0} does not exist.".format(args.kernel)
-    if args.target == 'ram':
+    if args.target == 'all':
+        targets = ['rom', 'ram']
+
+    elif args.target == 'ram':
         targets = ['ram']
     elif args.target == 'rom':
         targets = ['rom']
-    elif args.target == 'all':
-        targets = ['rom', 'ram']
-
     for t in targets:
 
         elf = ELFFile(open(args.kernel, "rb"))
@@ -761,11 +746,7 @@ def main():
 
         symbol_dict = None
 
-        if args.json:
-            jsonout = args.json
-        else:
-            jsonout = os.path.join(args.output, f'{t}.json')
-
+        jsonout = args.json or os.path.join(args.output, f'{t}.json')
         symbol_dict = symbols[t]
         symsize = addr_ranges[f'{t}_total_size']
         ranges = addr_ranges[t]
@@ -791,8 +772,7 @@ def main():
                 print_any_tree(root, symsize, args.depth)
 
             exporter = DictExporter()
-            data = dict()
-            data["symbols"] = exporter.export(root)
+            data = {"symbols": exporter.export(root)}
             data["total_size"] = symsize
             with open(jsonout, "w") as fp:
                 json.dump(data, fp, indent=4)

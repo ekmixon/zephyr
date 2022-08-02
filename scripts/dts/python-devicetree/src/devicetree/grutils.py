@@ -48,10 +48,7 @@ class Graph:
         @rtype: C{set}
         """
         if not self.__roots:
-            self.__roots = set()
-            for n in self.__nodes:
-                if n not in self.__reverse_map:
-                    self.__roots.add(n)
+            self.__roots = {n for n in self.__nodes if n not in self.__reverse_map}
         return self.__roots
 
     def _tarjan(self):
@@ -70,13 +67,14 @@ class Graph:
         self.__stack = []
         self.__scc_order = []
         self.__index = 0
-        self.__tarjan_index = {}
         self.__tarjan_low_link = {}
-        for v in self.__nodes:
-            self.__tarjan_index[v] = None
+        self.__tarjan_index = {v: None for v in self.__nodes}
         roots = sorted(self.roots(), key=node_key)
         if self.__nodes and not roots:
-            raise Exception('TARJAN: No roots found in graph with {} nodes'.format(len(self.__nodes)))
+            raise Exception(
+                f'TARJAN: No roots found in graph with {len(self.__nodes)} nodes'
+            )
+
 
         for r in roots:
             self._tarjan_root(r)
@@ -146,11 +144,7 @@ def node_key(node):
     # for otherwise indistinguishable siblings are in increasing order
     # by unit address, which is convenient for displaying output.
 
-    if node.parent:
-        parent_path = node.parent.path
-    else:
-        parent_path = '/'
-
+    parent_path = node.parent.path if node.parent else '/'
     if node.unit_addr is not None:
         name = node.name.rsplit('@', 1)[0]
         unit_addr = node.unit_addr

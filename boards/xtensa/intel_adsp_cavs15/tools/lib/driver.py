@@ -56,10 +56,9 @@ class HdaMemory:
          self.size) = struct.unpack('=QQL', raw)
 
     def get_value(self):
-        data = bytearray(struct.pack('=QQL', self.dma_addr_p,
-                                             self.dma_addr_v,
-                                             self.size))
-        return data
+        return bytearray(
+            struct.pack('=QQL', self.dma_addr_p, self.dma_addr_v, self.size)
+        )
 
     def __str__(self):
         return "   DMA Physical Address: 0x%08X\n" \
@@ -78,15 +77,9 @@ class HdaHandle:
         self.dsp_bar = HdaBar(data[1])
 
     def __str__(self):
-        output = (
-            "HDA BAR:\n"
-            "{hda}\n"
-            "DSP BAR:\n"
-            "{dsp}"
-        ).format(
-            hda = self.hda_bar, dsp = self.dsp_bar
+        return ("HDA BAR:\n" "{hda}\n" "DSP BAR:\n" "{dsp}").format(
+            hda=self.hda_bar, dsp=self.dsp_bar
         )
-        return output
 
 
 class DiagDriver:
@@ -110,7 +103,7 @@ class DiagDriver:
         # Allocate bytearry for HDABusTest_OpenDevice
         buf = bytearray(CMD_OPEN_DEVICE_LEN)
 
-        logging.info("Open HDA device: %s" % DIAG_DRV_PATH)
+        logging.info(f"Open HDA device: {DIAG_DRV_PATH}")
         # Send CMD_OPEN_DEVICE
         with open(DIAG_DRV_PATH) as fd:
             fcntl.ioctl(fd, CMD_OPEN_DEVICE, buf)

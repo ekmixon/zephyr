@@ -51,10 +51,10 @@ flash_content = []
 write_buf     = []
 
 def debug(text):
-    sys.stdout.write(os.path.basename(sys.argv[0]) + ": " + text + "\n")
+    sys.stdout.write(f"{os.path.basename(sys.argv[0])}: {text}" + "\n")
 
 def error(text):
-    sys.exit(os.path.basename(sys.argv[0]) + ": " + text)
+    sys.exit(f"{os.path.basename(sys.argv[0])}: {text}")
 
 def set_magic_number(value):
     flash_content.append(value)
@@ -67,7 +67,7 @@ def ipc_load_fw(fw_size, fw_offset):
     load_flags = 0
     clock_sel = 0
 
-    dword_count = 0x3ff & dword_count
+    dword_count &= 0x3ff
 
     debug("Creating flash image with following options:")
 
@@ -111,7 +111,7 @@ def ipc_load_fw(fw_size, fw_offset):
 
 def ipc_dbg_exec(address):
     dword_count = 1
-    dword_count = 0x3ff & dword_count
+    dword_count &= 0x3ff
 
     msg_header = 0x81000000 | ROM_CONTROL_EXEC
     ext_header = 0x0 | dword_count
@@ -122,7 +122,7 @@ def ipc_dbg_exec(address):
 
 def ipc_dbg_memwrite(address, value):
     dword_count = 2
-    dword_count = 0x3ff & dword_count
+    dword_count &= 0x3ff
 
     msg_header = 0x81000000 | ROM_CONTROL_MEMWRITE
     ext_header = 0x0 | dword_count
@@ -207,12 +207,10 @@ def main():
     # Generate the file which should be downloaded to Flash
     with open(args.out_file, "wb") as out_fp:
         # write as a uint (4 bytes) with byte order swapped (big-endian)
-        out_fp.write(struct.pack(">{}I".format(len(flash_content)),
-                                                        *flash_content))
+        out_fp.write(struct.pack(f">{len(flash_content)}I", *flash_content))
 
         # write as a byte
-        out_fp.write(struct.pack("{}B".format(len(write_buf)),
-                                                        *write_buf))
+        out_fp.write(struct.pack(f"{len(write_buf)}B", *write_buf))
 
         out_fp.close()
 

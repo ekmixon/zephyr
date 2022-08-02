@@ -224,9 +224,10 @@ def menuconfig(kconf):
     _root.update_idletasks()
 
     # Center the window
-    _root.geometry("+{}+{}".format(
-        (_root.winfo_screenwidth() - _root.winfo_reqwidth())//2,
-        (_root.winfo_screenheight() - _root.winfo_reqheight())//2))
+    _root.geometry(
+        f"+{(_root.winfo_screenwidth() - _root.winfo_reqwidth()) // 2}+{(_root.winfo_screenheight() - _root.winfo_reqheight()) // 2}"
+    )
+
 
     # Show it
     _root.deiconify()
@@ -246,11 +247,7 @@ def _load_config():
     # saving the configuration in that case.
 
     print(_kconf.load_config())
-    if not os.path.exists(_conf_filename):
-        # No .config
-        return True
-
-    return _needs_save()
+    return _needs_save() if os.path.exists(_conf_filename) else True
 
 
 def _needs_save():
@@ -261,27 +258,23 @@ def _needs_save():
         # Assignments to undefined symbols in the .config
         return True
 
-    for sym in _kconf.unique_defined_syms:
-        if sym.user_value is None:
-            if sym.config_string:
-                # Unwritten symbol
-                return True
-        elif sym.orig_type in (BOOL, TRISTATE):
-            if sym.tri_value != sym.user_value:
-                # Written bool/tristate symbol, new value
-                return True
-        elif sym.str_value != sym.user_value:
-            # Written string/int/hex symbol, new value
-            return True
-
-    # No need to prompt for save
-    return False
+    return any(
+        sym.user_value is None
+        and sym.config_string
+        or sym.user_value is not None
+        and sym.orig_type in (BOOL, TRISTATE)
+        and sym.tri_value != sym.user_value
+        or sym.user_value is not None
+        and sym.orig_type not in (BOOL, TRISTATE)
+        and sym.str_value != sym.user_value
+        for sym in _kconf.unique_defined_syms
+    )
 
 
 def _create_id_to_node():
     global _id_to_node
 
-    _id_to_node = {str(id(node)): node for node in _kconf.node_iter()}
+    _id_to_node = {id(node): node for node in _kconf.node_iter()}
 
 
 def _create_ui():
@@ -346,8 +339,10 @@ def _load_images():
             globals()[var_name] = PhotoImage(data=data, format="gif")
         else:
             globals()[var_name] = PhotoImage(
-                file=os.path.join(os.path.dirname(__file__), name + ".gif"),
-                format="gif")
+                file=os.path.join(os.path.dirname(__file__), f"{name}.gif"),
+                format="gif",
+            )
+
 
     # Note: Base64 data can be put on the clipboard with
     #   $ base64 -w0 foo.gif | xclip
@@ -690,13 +685,9 @@ def _build_full_tree(menu):
         if node.list and not isinstance(node.item, Symbol):
             if _tree.item(id(node), "open"):
                 _build_full_tree(node)
-            else:
-                # We're just probing here, so _shown_menu_nodes() will work
-                # fine, and might be a bit faster
-                shown = _shown_menu_nodes(node)
-                if shown:
-                    # Dummy element to make the open/closed toggle appear
-                    _tree.move(id(shown[0]), id(shown[0].parent), "end")
+            elif shown := _shown_menu_nodes(node):
+                # Dummy element to make the open/closed toggle appear
+                _tree.move(id(shown[0]), id(shown[0].parent), "end")
 
 
 def _shown_full_nodes(menu):
@@ -784,23 +775,17 @@ def _add_to_tree(node, top):
     _tree.item(
         id(node),
         text=_node_str(node),
-        # The _show_all test avoids showing invisible items in red outside
-        # show-all mode, which could look confusing/broken. Invisible symbols
-        # are shown outside show-all mode if an invisible symbol has visible
-        # children in an implicit menu.
-        tags=_img_tag(node) if _visible(node) or not _show_all else
-            _img_tag(node) + " invisible")
+        tags=_img_tag(node)
+        if _visible(node) or not _show_all
+        else f"{_img_tag(node)} invisible",
+    )
 
 
 def _node_str(node):
     # Returns the string shown to the right of the image (if any) for the node
 
     if node.prompt:
-        if node.item == COMMENT:
-            s = "*** {} ***".format(node.prompt[0])
-        else:
-            s = node.prompt[0]
-
+        s = f"*** {node.prompt[0]} ***" if node.item == COMMENT else node.prompt[0]
         if isinstance(node.item, Symbol):
             sym = node.item
 
@@ -814,7 +799,7 @@ def _node_str(node):
 
     elif isinstance(node.item, Symbol):
         # Symbol without prompt (can show up in show-all)
-        s = "<{}>".format(node.item.name)
+        s = f"<{node.item.name}>"
 
     else:
         # Choice without prompt. Use standard_sc_expr_str() so that it shows up
@@ -825,27 +810,24 @@ def _node_str(node):
     if isinstance(node.item, Symbol):
         sym = node.item
         if sym.orig_type == STRING:
-            s += ": " + sym.str_value
+            s += f": {sym.str_value}"
         elif sym.orig_type in (INT, HEX):
-            s = "({}) {}".format(sym.str_value, s)
+            s = f"({sym.str_value}) {s}"
 
     elif isinstance(node.item, Choice) and node.item.tri_value == 2:
-        # Print the prompt of the selected symbol after the choice for
-        # choices in y mode
-        sym = node.item.selection
-        if sym:
+        if sym := node.item.selection:
             for sym_node in sym.nodes:
                 # Use the prompt used at this choice location, in case the
                 # choice symbol is defined in multiple locations
                 if sym_node.parent is node and sym_node.prompt:
-                    s += " ({})".format(sym_node.prompt[0])
+                    s += f" ({sym_node.prompt[0]})"
                     break
             else:
                 # If the symbol isn't defined at this choice location, then
                 # just use whatever prompt we can find for it
                 for sym_node in sym.nodes:
                     if sym_node.prompt:
-                        s += " ({})".format(sym_node.prompt[0])
+                        s += f" ({sym_node.prompt[0]})"
                         break
 
     # In single-menu mode, print "--->" next to nodes that have menus that can
@@ -877,15 +859,15 @@ def _img_tag(node):
 
     if len(item.assignable) <= 1:
         # Pinned to a single value
-        return "" if isinstance(item, Choice) else item.str_value + "-locked"
+        return "" if isinstance(item, Choice) else f"{item.str_value}-locked"
 
     if item.type == BOOL:
-        return item.str_value + "-bool"
+        return f"{item.str_value}-bool"
 
     # item.type == TRISTATE
     if item.assignable == (1, 2):
-        return item.str_value + "-my"
-    return item.str_value + "-tri"
+        return f"{item.str_value}-my"
+    return f"{item.str_value}-tri"
 
 
 def _is_y_mode_choice_sym(item):
@@ -930,8 +912,7 @@ def _tree_enter(event):
     # open/close/enter menus, but toggle the value if that's not possible.
 
     tree = event.widget
-    sel = tree.focus()
-    if sel:
+    if sel := tree.focus():
         node = _id_to_node[sel]
 
         if tree.get_children(sel):
@@ -949,8 +930,7 @@ def _tree_toggle(event):
     # open/close/enter the menu if that's not possible.
 
     tree = event.widget
-    sel = tree.focus()
-    if sel:
+    if sel := tree.focus():
         node = _id_to_node[sel]
 
         if _changeable(node):
@@ -975,10 +955,7 @@ def _tree_left_key(_):
 
 
 def _tree_right_key(_):
-    # Right arrow key press within the Kconfig treeview
-
-    sel = _tree.focus()
-    if sel:
+    if sel := _tree.focus():
         node = _id_to_node[sel]
         # If the node can be entered in single-menu mode, do it
         if _single_menu_mode_menu(node, _tree):
@@ -1007,11 +984,13 @@ def _changeable(node):
     # This will hit for invisible symbols, which appear in show-all mode and
     # when an invisible symbol has visible children (which can happen e.g. for
     # symbols with optional prompts)
-    if not (node.prompt and expr_value(node.prompt[1])):
-        return False
-
-    return sc.orig_type in (STRING, INT, HEX) or len(sc.assignable) > 1 \
-           or _is_y_mode_choice_sym(sc)
+    return (
+        sc.orig_type in (STRING, INT, HEX)
+        or len(sc.assignable) > 1
+        or _is_y_mode_choice_sym(sc)
+        if (node.prompt and expr_value(node.prompt[1]))
+        else False
+    )
 
 
 def _tree_toggle_open(item):
@@ -1078,8 +1057,7 @@ def _item_row(item):
     row = 0
 
     while True:
-        prev = _tree.prev(item)
-        if prev:
+        if prev := _tree.prev(item):
             item = prev
             row += _n_rows(item)
         else:
@@ -1186,7 +1164,7 @@ def _set_val_dialog(node, parent):
 
         s = entry.get()
         if sym.type == HEX and not s.startswith(("0x", "0X")):
-            s = "0x" + s
+            s = f"0x{s}"
 
         if _check_valid(dialog, entry, sym, s):
             _entry_res = s
@@ -1205,9 +1183,10 @@ def _set_val_dialog(node, parent):
     dialog.transient(parent)
     dialog.protocol("WM_DELETE_WINDOW", cancel)
 
-    ttk.Label(dialog, text=node.prompt[0] + ":") \
-        .grid(column=0, row=0, columnspan=2, sticky="w", padx=".3c",
-              pady=".2c .05c")
+    ttk.Label(dialog, text=f"{node.prompt[0]}:").grid(
+        column=0, row=0, columnspan=2, sticky="w", padx=".3c", pady=".2c .05c"
+    )
+
 
     entry = ttk.Entry(dialog, width=30)
     # Start with the previous value in the editbox, selected
@@ -1242,6 +1221,7 @@ def _set_val_dialog(node, parent):
         _root.update_idletasks()
         entry.unbind("<Expose>")
         entry.xview_moveto(1)
+
     entry.bind("<Expose>", scroll_entry)
 
     # The dialog must be visible before we can grab the input
@@ -1288,7 +1268,7 @@ def _center_on_root(dialog):
     elif y < 0:
         y = 0
 
-    dialog.geometry("+{}+{}".format(x, y))
+    dialog.geometry(f"+{x}+{y}")
 
     dialog.deiconify()
 
@@ -1307,9 +1287,10 @@ def _check_valid(dialog, entry, sym, s):
     except ValueError:
         messagebox.showerror(
             "Bad value",
-            "'{}' is a malformed {} value".format(
-                s, TYPE_TO_STR[sym.type]),
-            parent=dialog)
+            f"'{s}' is a malformed {TYPE_TO_STR[sym.type]} value",
+            parent=dialog,
+        )
+
         entry.focus_set()
         return False
 
@@ -1321,8 +1302,10 @@ def _check_valid(dialog, entry, sym, s):
             if not int(low_s, base) <= int(s, base) <= int(high_s, base):
                 messagebox.showerror(
                     "Value out of range",
-                    "{} is outside the range {}-{}".format(s, low_s, high_s),
-                    parent=dialog)
+                    f"{s} is outside the range {low_s}-{high_s}",
+                    parent=dialog,
+                )
+
                 entry.focus_set()
                 return False
 
@@ -1338,7 +1321,7 @@ def _range_info(sym):
     if sym.type in (INT, HEX):
         for low, high, cond in sym.ranges:
             if expr_value(cond):
-                return "Range: {}-{}".format(low.str_value, high.str_value)
+                return f"Range: {low.str_value}-{high.str_value}"
 
     return None
 
@@ -1640,7 +1623,7 @@ def _vis_before(item):
             return item
 
         prev = _tree.prev(item)
-        item = prev if prev else _tree.parent(item)
+        item = prev or _tree.parent(item)
 
     return None
 
@@ -1653,8 +1636,7 @@ def _vis_after(item):
         if not _tree.tag_has("invisible", item):
             return item
 
-        next = _tree.next(item)
-        if next:
+        if next := _tree.next(item):
             item = next
         else:
             item = _tree.parent(item)
@@ -1669,7 +1651,7 @@ def _on_quit(_=None):
     # Called when the user wants to exit
 
     if not _conf_changed:
-        _quit("No changes to save (for '{}')".format(_conf_filename))
+        _quit(f"No changes to save (for '{_conf_filename}')")
         return
 
     while True:
@@ -1678,7 +1660,7 @@ def _on_quit(_=None):
             return
 
         if not ync:
-            _quit("Configuration ({}) was not saved".format(_conf_filename))
+            _quit(f"Configuration ({_conf_filename}) was not saved")
             return
 
         if _try_save(_kconf.write_config, _conf_filename, "configuration"):
@@ -1715,10 +1697,10 @@ def _try_save(save_fn, filename, description):
         return True
     except EnvironmentError as e:
         messagebox.showerror(
-            "Error saving " + description,
-            "Error saving {} to '{}': {} (errno: {})"
-            .format(description, e.filename, e.strerror,
-                    errno.errorcode[e.errno]))
+            f"Error saving {description}",
+            f"Error saving {description} to '{e.filename}': {e.strerror} (errno: {errno.errorcode[e.errno]})",
+        )
+
         return False
 
 
@@ -1737,8 +1719,9 @@ def _try_load(filename):
     except EnvironmentError as e:
         messagebox.showerror(
             "Error loading configuration",
-            "Error loading '{}': {} (errno: {})"
-            .format(filename, e.strerror, errno.errorcode[e.errno]))
+            f"Error loading '{filename}': {e.strerror} (errno: {errno.errorcode[e.errno]})",
+        )
+
         return False
 
 
@@ -1869,7 +1852,7 @@ def _update_jump_to_matches(msglabel, search_string):
         msg = "Bad regular expression"
         # re.error.msg was added in Python 3.5
         if hasattr(e, "msg"):
-            msg += ": " + e.msg
+            msg += f": {e.msg}"
         msglabel["text"] = msg
         # Clear tree
         _jump_to_tree.set_children("")
@@ -1929,10 +1912,14 @@ def _update_jump_to_display():
     img_tag = _img_tag
     visible = _visible
     for node in _jump_to_matches:
-        item(id_(node),
-             text=node_str(node),
-             tags=img_tag(node) if visible(node) else
-                 img_tag(node) + " invisible")
+        item(
+            id_(node),
+            text=node_str(node),
+            tags=img_tag(node)
+            if visible(node)
+            else f"{img_tag(node)} invisible",
+        )
+
 
     _jump_to_tree.set_children("", *map(id, _jump_to_matches))
 
@@ -2057,14 +2044,17 @@ def _info_str(node):
         choice = node.item
 
         return (
-            _name_info(choice) +
-            _help_info(choice) +
-            'Mode: {}\n\n'.format(choice.str_value) +
-            _choice_syms_info(choice) +
-            _direct_dep_info(choice) +
-            _defaults_info(choice) +
-            _kconfig_def_info(choice)
+            (
+                _name_info(choice)
+                + _help_info(choice)
+                + f'Mode: {choice.str_value}\n\n'
+            )
+            + _choice_syms_info(choice)
+            + _direct_dep_info(choice)
+            + _defaults_info(choice)
+            + _kconfig_def_info(choice)
         )
+
 
     # node.item in (MENU, COMMENT)
     return _kconfig_def_info(node)
@@ -2074,7 +2064,7 @@ def _name_info(sc):
     # Returns a string with the name of the symbol/choice. Choices are shown as
     # <choice (name if any)>.
 
-    return (sc.name if sc.name else standard_sc_expr_str(sc)) + "\n\n"
+    return (sc.name or standard_sc_expr_str(sc)) + "\n\n"
 
 
 def _value_info(sym):
@@ -2082,9 +2072,8 @@ def _value_info(sym):
 
     # Only put quotes around the value for string symbols
     return "Value: {}\n".format(
-        '"{}"'.format(sym.str_value)
-        if sym.orig_type == STRING
-        else sym.str_value)
+        f'"{sym.str_value}"' if sym.orig_type == STRING else sym.str_value
+    )
 
 
 def _choice_syms_info(choice):
@@ -2094,7 +2083,7 @@ def _choice_syms_info(choice):
     s = "Choice symbols:\n"
 
     for sym in choice.syms:
-        s += "  - " + sym.name
+        s += f"  - {sym.name}"
         if sym is choice.selection:
             s += " (selected)"
         s += "\n"
@@ -2103,17 +2092,9 @@ def _choice_syms_info(choice):
 
 
 def _help_info(sc):
-    # Returns a string with the help text(s) of 'sc' (Symbol or Choice).
-    # Symbols and choices defined in multiple locations can have multiple help
-    # texts.
-
-    s = ""
-
-    for node in sc.nodes:
-        if node.help is not None:
-            s += node.help + "\n\n"
-
-    return s
+    return "".join(
+        node.help + "\n\n" for node in sc.nodes if node.help is not None
+    )
 
 
 def _direct_dep_info(sc):
@@ -2122,10 +2103,11 @@ def _direct_dep_info(sc):
     # definition location. The dependencies at each definition location come
     # from 'depends on' and dependencies inherited from parent items.
 
-    return "" if sc.direct_dep is _kconf.y else \
-        'Direct dependencies (={}):\n{}\n' \
-        .format(TRI_TO_STR[expr_value(sc.direct_dep)],
-                _split_expr_info(sc.direct_dep, 2))
+    return (
+        ""
+        if sc.direct_dep is _kconf.y
+        else f'Direct dependencies (={TRI_TO_STR[expr_value(sc.direct_dep)]}):\n{_split_expr_info(sc.direct_dep, 2)}\n'
+    )
 
 
 def _defaults_info(sc):
@@ -2150,7 +2132,7 @@ def _defaults_info(sc):
             # This also avoids showing the tristate value for string/int/hex
             # defaults, which wouldn't make any sense.
             if isinstance(val, tuple):
-                s += '  (={})'.format(TRI_TO_STR[expr_value(val)])
+                s += f'  (={TRI_TO_STR[expr_value(val)]})'
         else:
             # Don't print the value next to the symbol name for choice
             # defaults, as it looks a bit confusing
@@ -2158,9 +2140,8 @@ def _defaults_info(sc):
         s += "\n"
 
         if cond is not _kconf.y:
-            s += "    Condition (={}):\n{}" \
-                 .format(TRI_TO_STR[expr_value(cond)],
-                         _split_expr_info(cond, 4))
+            s += f"    Condition (={TRI_TO_STR[expr_value(cond)]}):\n{_split_expr_info(cond, 4)}"
+
 
     return s + "\n"
 
@@ -2183,14 +2164,12 @@ def _split_expr_info(expr, indent):
 
     s = ""
     for i, term in enumerate(split_expr(expr, split_op)):
-        s += "{}{} {}".format(indent*" ",
-                              "  " if i == 0 else op_str,
-                              _expr_str(term))
+        s += f'{indent * " "}{"  " if i == 0 else op_str} {_expr_str(term)}'
 
         # Don't bother showing the value hint if the expression is just a
         # single symbol. _expr_str() already shows its value.
         if isinstance(term, tuple):
-            s += "  (={})".format(TRI_TO_STR[expr_value(term)])
+            s += f"  (={TRI_TO_STR[expr_value(term)]})"
 
         s += "\n"
 
@@ -2240,32 +2219,28 @@ def _kconfig_def_info(item):
 
     nodes = [item] if isinstance(item, MenuNode) else item.nodes
 
-    s = "Kconfig definition{}, with parent deps. propagated to 'depends on'\n" \
-        .format("s" if len(nodes) > 1 else "")
+    s = f"""Kconfig definition{"s" if len(nodes) > 1 else ""}, with parent deps. propagated to 'depends on'\n"""
+
     s += (len(s) - 1)*"="
 
     for node in nodes:
-        s += "\n\n" \
-             "At {}:{}\n" \
-             "{}" \
-             "Menu path: {}\n\n" \
-             "{}" \
-             .format(node.filename, node.linenr,
-                     _include_path_info(node),
-                     _menu_path_info(node),
-                     node.custom_str(_name_and_val_str))
+        s += f"\n\nAt {node.filename}:{node.linenr}\n{_include_path_info(node)}Menu path: {_menu_path_info(node)}\n\n{node.custom_str(_name_and_val_str)}"
+
 
     return s
 
 
 def _include_path_info(node):
-    if not node.include_path:
-        # In the top-level Kconfig file
-        return ""
-
-    return "Included via {}\n".format(
-        " -> ".join("{}:{}".format(filename, linenr)
-                    for filename, linenr in node.include_path))
+    return (
+        "Included via {}\n".format(
+            " -> ".join(
+                f"{filename}:{linenr}"
+                for filename, linenr in node.include_path
+            )
+        )
+        if node.include_path
+        else ""
+    )
 
 
 def _menu_path_info(node):
@@ -2282,7 +2257,7 @@ def _menu_path_info(node):
         path = " -> " + (node.prompt[0] if node.prompt else
                          standard_sc_expr_str(node.item)) + path
 
-    return "(Top)" + path
+    return f"(Top){path}"
 
 
 def _name_and_val_str(sc):
@@ -2293,12 +2268,7 @@ def _name_and_val_str(sc):
     # expected due to undefined symbols getting their name as their value.
     # Showing the symbol value for those isn't helpful though.
     if isinstance(sc, Symbol) and not sc.is_constant and not _is_num(sc.name):
-        if not sc.nodes:
-            # Undefined symbol reference
-            return "{}(undefined/n)".format(sc.name)
-
-        return '{}(={})'.format(sc.name, sc.str_value)
-
+        return f'{sc.name}(={sc.str_value})' if sc.nodes else f"{sc.name}(undefined/n)"
     # For other items, use the standard format
     return standard_sc_expr_str(sc)
 

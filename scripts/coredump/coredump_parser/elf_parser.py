@@ -33,7 +33,7 @@ class CoredumpElfFile():
         self.elffile = elffile
         self.fd = None
         self.elf = None
-        self.memory_regions = list()
+        self.memory_regions = []
 
     def open(self):
         self.fd = open(self.elffile, "rb")

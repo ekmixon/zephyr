@@ -32,7 +32,7 @@ import mmap
 
 MAP_SIZE = 8192
 SLOT_SIZE = 64
-NUM_SLOTS = int(MAP_SIZE / SLOT_SIZE)
+NUM_SLOTS = MAP_SIZE // SLOT_SIZE
 SLOT_MAGIC = 0x55aa
 WIN_OFFSET = 0x80000
 WIN_IDX = 3
@@ -43,20 +43,20 @@ mem = None
 sys_devices = "/sys/bus/pci/devices"
 
 for dev_addr in os.listdir(sys_devices):
-    class_file = sys_devices + "/" + dev_addr + "/class"
+    class_file = f"{sys_devices}/{dev_addr}/class"
     pciclass = open(class_file).read()
 
-    vendor_file = sys_devices + "/" + dev_addr + "/vendor"
+    vendor_file = f"{sys_devices}/{dev_addr}/vendor"
     pcivendor = open(vendor_file).read()
 
-    if not "0x8086" in pcivendor:
+    if "0x8086" not in pcivendor:
         continue
 
     # Intel Multimedia audio controller
     #   0x040100 -> DSP is present
     #   0x040380 -> DSP is present but optional
     if "0x040100" in pciclass or "0x040380" in pciclass:
-        barfile = sys_devices + "/" + dev_addr + "/resource4"
+        barfile = f"{sys_devices}/{dev_addr}/resource4"
 
         fd = open(barfile)
         mem = mmap.mmap(fd.fileno(), MAP_SIZE, offset=LOG_OFFSET,

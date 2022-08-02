@@ -174,8 +174,10 @@ def init():
 
         abspath = pathlib.Path(path_s).resolve()
         if not abspath.is_dir():
-            sys.exit("error: path '{}' in --no-index-modules argument does not"
-                     " exist".format(abspath))
+            sys.exit(
+                f"error: path '{abspath}' in --no-index-modules argument does not exist"
+            )
+
 
         no_index_modules.append((title, abspath))
 
@@ -340,14 +342,18 @@ This index page lists all symbols, regardless of where they are defined:
                                        kconf.unique_defined_syms))
 
     if modules:
-        rst += """
+        rst += (
+            """
 
 These index pages only list symbols defined within a particular subsystem:
 
 .. toctree::
    :maxdepth: 1
 
-""" + "\n".join("   index-" + suffix for _, suffix, _, _, in modules)
+"""
+            + "\n".join(f"   index-{suffix}" for _, suffix, _, _, in modules)
+        )
+
 
     if not separate_all_index:
         rst += NO_MAX_WIDTH
@@ -374,9 +380,12 @@ def write_module_index_pages():
     # Iterate 'modules' instead of 'module2syms' so that an index page gets
     # written even if the module has no symbols
     for title, suffix, _, desc_path in modules:
-        rst = index_header(title=title + " Configuration Options",
-                           link="configuration_options_" + suffix,
-                           desc_path=desc_path)
+        rst = index_header(
+            title=f"{title} Configuration Options",
+            link=f"configuration_options_{suffix}",
+            desc_path=desc_path,
+        )
+
 
         rst += NO_MAX_WIDTH
         rst += sym_table_rst("Configuration Options",
@@ -412,14 +421,14 @@ def sym_table_rst(title, syms):
 
 
 def sym_index_desc(sym):
-    # Returns the description used for 'sym' on the index page
-
-    for node in sym.nodes:
-        if node.prompt:
-            return escape_inline_rst(node.prompt[0])
-
-    # No help text or prompt
-    return ""
+    return next(
+        (
+            escape_inline_rst(node.prompt[0])
+            for node in sym.nodes
+            if node.prompt
+        ),
+        "",
+    )
 
 
 def index_header(title, link, desc_path):
@@ -511,13 +520,15 @@ def write_choice_page(choice):
     # is the index of the choice in kconf.choices (where choices appear in the
     # same order as in the Kconfig files)
 
-    write_if_updated(choice_id(choice) + ".rst",
-                     choice_header_rst(choice) +
-                     help_rst(choice) +
-                     direct_deps_rst(choice) +
-                     defaults_rst(choice) +
-                     choice_syms_rst(choice) +
-                     kconfig_definition_rst(choice))
+    write_if_updated(
+        f"{choice_id(choice)}.rst",
+        choice_header_rst(choice)
+        + help_rst(choice)
+        + direct_deps_rst(choice)
+        + defaults_rst(choice)
+        + choice_syms_rst(choice)
+        + kconfig_definition_rst(choice),
+    )
 
 
 def sym_header_rst(sym):
@@ -558,20 +569,14 @@ def prompt_rst(sc):
 
 
 def help_rst(sc):
-    # Returns RST that lists the help text(s) of 'sc' (symbol or choice).
-    # Symbols and choices with multiple definitions can have multiple help
-    # texts.
-
-    rst = ""
-
-    for node in sc.nodes:
-        if node.help is not None:
-            rst += "Help\n" \
-                   "====\n\n" \
-                   ".. code-block:: none\n\n" \
-                   f"{textwrap.indent(node.help, 4 * ' ')}\n\n"
-
-    return rst
+    return "".join(
+        "Help\n"
+        "====\n\n"
+        ".. code-block:: none\n\n"
+        f"{textwrap.indent(node.help, 4 * ' ')}\n\n"
+        for node in sc.nodes
+        if node.help is not None
+    )
 
 
 def direct_deps_rst(sc):
@@ -602,9 +607,9 @@ def defaults_rst(sc):
 
     if sc.defaults:
         for value, cond in sc.orig_defaults:
-            rst += "- " + expr_str(value)
+            rst += f"- {expr_str(value)}"
             if cond is not sc.kconfig.y:
-                rst += " if " + expr_str(cond)
+                rst += f" if {expr_str(cond)}"
             rst += "\n"
     else:
         rst += "No defaults. Implicitly defaults to "
@@ -653,9 +658,9 @@ def select_imply_rst(sym):
             rst += f"{heading}\n{len(heading)*'='}\n\n"
 
             for select, cond in lst:
-                rst += "- " + rst_link(select)
+                rst += f"- {rst_link(select)}"
                 if cond is not sym.kconfig.y:
-                    rst += " if " + expr_str(cond)
+                    rst += f" if {expr_str(cond)}"
                 rst += "\n"
 
             rst += "\n"
@@ -713,13 +718,16 @@ def kconfig_definition_rst(sc):
     arrow = " \N{RIGHTWARDS ARROW} "
 
     def include_path(node):
-        if not node.include_path:
-            # In the top-level Kconfig file
-            return ""
-
-        return "Included via {}\n\n".format(
-            arrow.join(f"``{strip_module_path(filename)}:{linenr}``"
-                       for filename, linenr in node.include_path))
+        return (
+            "Included via {}\n\n".format(
+                arrow.join(
+                    f"``{strip_module_path(filename)}:{linenr}``"
+                    for filename, linenr in node.include_path
+                )
+            )
+            if node.include_path
+            else ""
+        )
 
     def menu_path(node):
         path = ""
@@ -736,7 +744,7 @@ def kconfig_definition_rst(sc):
                     kconfiglib.standard_sc_expr_str(node.item)) + \
                    path
 
-        return "(Top)" + path
+        return f"(Top){path}"
 
     heading = "Kconfig definition"
     if len(sc.nodes) > 1: heading += "s"
@@ -782,13 +790,13 @@ def choice_desc(choice):
     desc = "choice"
 
     if choice.name:
-        desc += " " + choice.name
+        desc += f" {choice.name}"
 
     # The choice might be defined in multiple locations. Use the prompt from
     # the first location that has a prompt.
     for node in choice.nodes:
         if node.prompt:
-            desc += ": " + node.prompt[0]
+            desc += f": {node.prompt[0]}"
             break
 
     return desc

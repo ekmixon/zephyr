@@ -110,12 +110,8 @@ kobjects = OrderedDict([
 ])
 
 def kobject_to_enum(kobj):
-    if kobj.startswith("k_") or kobj.startswith("z_"):
-        name = kobj[2:]
-    else:
-        name = kobj
-
-    return "K_OBJ_%s" % name.upper()
+    name = kobj[2:] if kobj.startswith("k_") or kobj.startswith("z_") else kobj
+    return f"K_OBJ_{name.upper()}"
 
 subsystems = [
     # Editing the list is deprecated, add the __subsystem sentinal to your driver
@@ -130,7 +126,7 @@ subsystems = [
 net_sockets = [ ]
 
 def subsystem_to_enum(subsys):
-    return "K_OBJ_DRIVER_" + subsys[:-11].upper()
+    return f"K_OBJ_DRIVER_{subsys[:-11].upper()}"
 
 # --- debug stuff ---
 
@@ -139,10 +135,10 @@ scr = os.path.basename(sys.argv[0])
 def debug(text):
     if not args.verbose:
         return
-    sys.stdout.write(scr + ": " + text + "\n")
+    sys.stdout.write(f"{scr}: {text}" + "\n")
 
 def error(text):
-    sys.exit("%s ERROR: %s" % (scr, text))
+    sys.exit(f"{scr} ERROR: {text}")
 
 def debug_die(die, text):
     lp_header = die.dwarfinfo.line_program_for_CU(die.cu).header
@@ -158,7 +154,7 @@ def debug_die(die, text):
 
     debug(str(die))
     debug("File '%s', line %d:" % (path, lineno))
-    debug("    %s" % text)
+    debug(f"    {text}")
 
 # -- ELF processing
 
@@ -193,7 +189,7 @@ class KobjectType:
         self.api = api
 
     def __repr__(self):
-        return "<kobject %s>" % self.name
+        return f"<kobject {self.name}>"
 
     @staticmethod
     def has_kobject():
@@ -238,7 +234,7 @@ class ArrayType:
                 a = addr + (i * stacksize)
                 o = mt.get_kobjects(a)
                 o[a].data = stacksize
-                ret.update(o)
+                ret |= o
             return ret
 
         objs = {}
@@ -249,7 +245,7 @@ class ArrayType:
             num_members = num_members * e
 
         for i in range(num_members):
-            objs.update(mt.get_kobjects(addr + (i * mt.size)))
+            objs |= mt.get_kobjects(addr + (i * mt.size))
         return objs
 
 
@@ -258,17 +254,14 @@ class AggregateTypeMember:
         self.member_name = member_name
         self.member_type = member_type
         if isinstance(member_offset, list):
-            # DWARF v2, location encoded as set of operations
-            # only "DW_OP_plus_uconst" with ULEB128 argument supported
-            if member_offset[0] == 0x23:
-                self.member_offset = member_offset[1] & 0x7f
-                for i in range(1, len(member_offset)-1):
-                    if member_offset[i] & 0x80:
-                        self.member_offset += (
-                            member_offset[i+1] & 0x7f) << i*7
-            else:
+            if member_offset[0] != 0x23:
                 raise Exception("not yet supported location operation (%s:%d:%d)" %
                         (self.member_name, self.member_type, member_offset[0]))
+            self.member_offset = member_offset[1] & 0x7f
+            for i in range(1, len(member_offset)-1):
+                if member_offset[i] & 0x80:
+                    self.member_offset += (
+                        member_offset[i+1] & 0x7f) << i*7
         else:
             self.member_offset = member_offset
 
@@ -315,7 +308,7 @@ class AggregateType:
         self.members.append(member)
 
     def __repr__(self):
-        return "<struct %s, with %s>" % (self.name, self.members)
+        return f"<struct {self.name}, with {self.members}>"
 
     def has_kobject(self):
         result = False
@@ -337,7 +330,7 @@ class AggregateType:
     def get_kobjects(self, addr):
         objs = {}
         for member in self.members:
-            objs.update(member.get_kobjects(addr))
+            objs |= member.get_kobjects(addr)
         return objs
 
 
@@ -417,11 +410,10 @@ def analyze_die_struct(die):
 
 
 def analyze_die_const(die):
-    type_offset = die_get_type_offset(die)
-    if not type_offset:
+    if type_offset := die_get_type_offset(die):
+        type_env[die.offset] = ConstType(type_offset)
+    else:
         return
-
-    type_env[die.offset] = ConstType(type_offset)
 
 
 def analyze_die_array(die):
@@ -451,15 +443,18 @@ def analyze_die_array(die):
         else:
             continue
 
-    if not elements:
-        if type_offset in type_env.keys():
-            mt = type_env[type_offset]
-            if mt.has_kobject():
-                if isinstance(mt, KobjectType) and mt.name == STACK_TYPE:
-                    elements.append(1)
-                    type_env[die.offset] = ArrayType(die.offset, elements, type_offset)
-    else:
+    if elements:
         type_env[die.offset] = ArrayType(die.offset, elements, type_offset)
+
+    elif type_offset in type_env.keys():
+        mt = type_env[type_offset]
+        if (
+            mt.has_kobject()
+            and isinstance(mt, KobjectType)
+            and mt.name == STACK_TYPE
+        ):
+            elements.append(1)
+            type_env[die.offset] = ArrayType(die.offset, elements, type_offset)
 
 
 def analyze_typedef(die):
@@ -540,10 +535,11 @@ def find_kobjects(elf, syms):
 
     # Step 2: filter type_env to only contain kernel objects, or structs
     # and arrays of kernel objects
-    bad_offsets = []
-    for offset, type_object in type_env.items():
-        if not type_object.has_kobject():
-            bad_offsets.append(offset)
+    bad_offsets = [
+        offset
+        for offset, type_object in type_env.items()
+        if not type_object.has_kobject()
+    ]
 
     for offset in bad_offsets:
         del type_env[offset]
@@ -580,8 +576,7 @@ def find_kobjects(elf, syms):
             continue
 
         loc = die.attributes["DW_AT_location"]
-        if loc.form != "DW_FORM_exprloc" and \
-           loc.form != "DW_FORM_block1":
+        if loc.form not in ["DW_FORM_exprloc", "DW_FORM_block1"]:
             debug_die(die, "kernel object '%s' unexpected location format" %
                       name)
             continue
@@ -613,7 +608,7 @@ def find_kobjects(elf, syms):
 
         type_obj = type_env[type_offset]
         objs = type_obj.get_kobjects(addr)
-        all_objs.update(objs)
+        all_objs |= objs
 
         debug("symbol '%s' at %s contains %d object(s)"
               % (name, hex(addr), len(objs)))
@@ -637,7 +632,7 @@ def find_kobjects(elf, syms):
 
         if (ko.type_obj.name == STACK_TYPE and
                 (addr < user_stack_start or addr >= user_stack_end)):
-            debug("skip kernel-only stack at %s" % hex(addr))
+            debug(f"skip kernel-only stack at {hex(addr)}")
             continue
 
         # At this point we know the object will be included in the gperf table
@@ -806,10 +801,7 @@ def write_gperf_table(fp, syms, objs, little_endian, static_begin, static_end):
     fp.write("%%\n")
     # Setup variables for mapping thread indexes
     thread_max_bytes = syms["CONFIG_MAX_THREAD_BYTES"]
-    thread_idx_map = {}
-
-    for i in range(0, thread_max_bytes):
-        thread_idx_map[i] = 0xFF
+    thread_idx_map = {i: 0xFF for i in range(thread_max_bytes)}
 
     for obj_addr, ko in objs.items():
         obj_type = ko.type_name
@@ -819,16 +811,8 @@ def write_gperf_table(fp, syms, objs, little_endian, static_begin, static_end):
         initialized = static_begin <= obj_addr < static_end
         is_driver = obj_type.startswith("K_OBJ_DRIVER_")
 
-        if "CONFIG_64BIT" in syms:
-            format_code = "Q"
-        else:
-            format_code = "I"
-
-        if little_endian:
-            endian = "<"
-        else:
-            endian = ">"
-
+        format_code = "Q" if "CONFIG_64BIT" in syms else "I"
+        endian = "<" if little_endian else ">"
         byte_str = struct.pack(endian + format_code, obj_addr)
         fp.write("\"")
         for byte in byte_str:
@@ -841,13 +825,9 @@ def write_gperf_table(fp, syms, objs, little_endian, static_begin, static_end):
         if is_driver:
             flags += " | K_OBJ_FLAG_DRIVER"
 
-        if ko.type_name in metadata_names:
-            tname = metadata_names[ko.type_name]
-        else:
-            tname = "unused"
-
+        tname = metadata_names.get(ko.type_name, "unused")
         fp.write("\", {}, %s, %s, { .%s = %s }\n" % (obj_type, flags,
-		tname, str(ko.data)))
+        tname, str(ko.data)))
 
         if obj_type == "K_OBJ_THREAD":
             idx = math.floor(ko.data / 8)
@@ -860,7 +840,7 @@ def write_gperf_table(fp, syms, objs, little_endian, static_begin, static_end):
     fp.write('\n')
     fp.write('uint8_t _thread_idx_map[%d] = {' % (thread_max_bytes))
 
-    for i in range(0, thread_max_bytes):
+    for i in range(thread_max_bytes):
         fp.write(' 0x%x, ' % (thread_idx_map[i]))
 
     fp.write('};\n')
@@ -1013,9 +993,10 @@ def main():
                              % args.kernel)
 
         if thread_counter > max_threads:
-            sys.exit("Too many thread objects ({})\n"
-                     "Increase CONFIG_MAX_THREAD_BYTES to {}"
-                     .format(thread_counter, -(-thread_counter // 8)))
+            sys.exit(
+                f"Too many thread objects ({thread_counter})\nIncrease CONFIG_MAX_THREAD_BYTES to {-(-thread_counter // 8)}"
+            )
+
 
         with open(args.gperf_output, "w") as fp:
             write_gperf_table(fp, syms, objs, elf.little_endian,

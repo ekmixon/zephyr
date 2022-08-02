@@ -49,7 +49,7 @@ class Device:
         """
         Print configuration information that was read from config file
         """
-        print('%s Device on %s' %(self.name, self.spi_device))
+        print(f'{self.name} Device on {self.spi_device}')
         print('Max SPI Frequency: %2.1f MHz' % self.spi_speed)
         print('Reset GPIO: %d' % self.gpio_reset)
         print('Wake GPIO : %d' % self.gpio_wake)
@@ -66,7 +66,7 @@ class Device:
                 self.spi_speed * 1e6)
         self.spi.bit_order = order
         self.spi.bits_per_word = bits
-        print('Configured SPI %s for %s.' % (self.spi_device, self.name))
+        print(f'Configured SPI {self.spi_device} for {self.name}.')
         print('Configured GPIO %d for %s Reset.' % (self.gpio_reset, self.name))
         print('Configured GPIO %d for %s Wake.' % (self.gpio_wake, self.name))
         print('Configured GPIO %d for %s IRQ.' % (self.gpio_irq, self.name))
@@ -79,14 +79,14 @@ class Device:
         Device is ready if IRQ is asserted
         """
         min_wait = 0.001 #   1 ms
-        max_wait = 0.1 	 # 100 ms
         time.sleep(min_wait)
         ready = self.irq_pin.read()
         if not ready:
+            max_wait = 0.1 	 # 100 ms
             time.sleep(max_wait)
             ready = self.irq_pin.read()
-            if not ready:
-                print('Error: Device not ready', file=sys.stderr)
+        if not ready:
+            print('Error: Device not ready', file=sys.stderr)
         return ready
 
     def reset_device(self):
@@ -94,7 +94,7 @@ class Device:
         Assert the GPIO and deassert after a short duration to reset
         the target.
         """
-        print('Resetting %s ...' % self.name)
+        print(f'Resetting {self.name} ...')
         self.reset_pin.write(False)
         time.sleep(0.1)
         self.reset_pin.write(True)

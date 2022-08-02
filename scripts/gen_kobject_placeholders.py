@@ -40,17 +40,14 @@ def output_simple_header(one_sect):
 
     out_fn = os.path.join(args.outdir,
                           f"linker-kobject-prebuilt-{one_sect['name']}.h")
-    out_fp = open(out_fn, "w")
+    with open(out_fn, "w") as out_fp:
+        if one_sect['exists']:
+            align = one_sect['align']
+            size = one_sect['size']
+            prefix = one_sect['define_prefix']
 
-    if one_sect['exists']:
-        align = one_sect['align']
-        size = one_sect['size']
-        prefix = one_sect['define_prefix']
-
-        write_define(out_fp, prefix, 'ALIGN', align)
-        write_define(out_fp, prefix, 'SZ', size)
-
-    out_fp.close()
+            write_define(out_fp, prefix, 'ALIGN', align)
+            write_define(out_fp, prefix, 'SZ', size)
 
 
 def generate_linker_headers(obj):
@@ -85,7 +82,7 @@ def generate_linker_headers(obj):
             continue
 
         name = one_sect.name
-        if name in sections.keys():
+        if name in sections:
             # Need section alignment and size
             sections[name]['align'] = one_sect['sh_addralign']
             sections[name]['size'] = one_sect['sh_size']

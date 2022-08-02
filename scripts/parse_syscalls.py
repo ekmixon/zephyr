@@ -57,10 +57,7 @@ def tagged_struct_update(target_list, tag, contents):
 
 def analyze_headers(multiple_directories):
     syscall_ret = []
-    tagged_ret = {}
-
-    for tag in struct_tags:
-        tagged_ret[tag] = []
+    tagged_ret = {tag: [] for tag in struct_tags}
 
     for base_path in multiple_directories:
         for root, dirs, files in os.walk(base_path, topdown=True):

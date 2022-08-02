@@ -78,7 +78,7 @@ class Message:
         if msg_id == 0 and rsp == 0:
             print('RSP <<< NULL.')
         else:
-            print('RSP <<< %s.' % self.cmd_rsp[rsp])
+            print(f'RSP <<< {self.cmd_rsp[rsp]}.')
             if verbose:
                 count = bitstruct.unpack_from('u32', msg, 4 * 8)[0]
                 count &= 0x1ff
@@ -116,7 +116,7 @@ class Message:
         Creates a memory write command with memory address and value pairs
         """
         cmd = 'Memory Write'
-        print('CMD >>> %s.' % cmd)
+        print(f'CMD >>> {cmd}.')
         code = self.get_cmd_code(cmd)
         self.init_tx_data()
 
@@ -139,7 +139,7 @@ class Message:
         Creates a memory read command with memory addresses
         """
         cmd = 'Memory Read'
-        print('CMD >>> %s.' % cmd)
+        print(f'CMD >>> {cmd}.')
         code = self.get_cmd_code(cmd)
         self.init_tx_data()
 
@@ -162,7 +162,7 @@ class Message:
         Creates a command to load firmware with associated parameters
         """
         cmd = 'Load Firmware'
-        print('CMD >>> %s.' % cmd)
+        print(f'CMD >>> {cmd}.')
         code = self.get_cmd_code(cmd)
 
         FW_NO_EXEC_FLAG = (1 << 26)
@@ -170,7 +170,7 @@ class Message:
         LD_FW_HEADER_LEN = 3
 
         count_flags = FW_NO_EXEC_FLAG | SEL_HP_CLK
-        count_flags |= (LD_FW_HEADER_LEN + int(len(sha) / 4))
+        count_flags |= LD_FW_HEADER_LEN + len(sha) // 4
 
         self.init_tx_data()
 
@@ -197,7 +197,7 @@ class Message:
         Creates a command to excute firmware
         """
         cmd = 'Execute'
-        print('CMD >>> %s.' % cmd)
+        print(f'CMD >>> {cmd}.')
         code = self.get_cmd_code(cmd)
 
         EXE_FW_HEADER_LEN = 1

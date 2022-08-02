@@ -52,7 +52,7 @@ class GdbStub_ARM_CortexM(GdbStub):
         arch_data_blk = self.logfile.get_arch_data()['data']
         tu = struct.unpack(self.ARCH_DATA_BLK_STRUCT, arch_data_blk)
 
-        self.registers = dict()
+        self.registers = {}
 
         self.registers[RegNum.R0] = tu[0]
         self.registers[RegNum.R1] = tu[1]

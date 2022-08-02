@@ -100,7 +100,7 @@ class GdbStub_x86(GdbStub):
         arch_data_blk = self.logfile.get_arch_data()['data']
         tu = struct.unpack(self.ARCH_DATA_BLK_STRUCT, arch_data_blk)
 
-        self.registers = dict()
+        self.registers = {}
 
         self.exception_vector = tu[0]
         self.exception_code = tu[1]

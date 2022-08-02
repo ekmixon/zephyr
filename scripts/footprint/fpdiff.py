@@ -44,9 +44,7 @@ def main():
         root2 = importer.import_(data['symbols'])
 
     for node in PreOrderIter(root1):
-        # pylint: disable=undefined-loop-variable
-        n = find(root2, lambda node2: node2.identifier == node.identifier)
-        if n:
+        if n := find(root2, lambda node2: node2.identifier == node.identifier):
             if n.size != node.size:
                 diff = n.size - node.size
                 if diff == 0:
@@ -57,15 +55,13 @@ def main():
                     else:
                         print(f"{n.identifier} -> {Fore.RED}+{diff}{Fore.RESET}")
 
-        else:
-            if not node.children:
-                print(f"{node.identifier} ({Fore.GREEN}-{node.size}{Fore.RESET}) disappeared.")
+        elif not node.children:
+            print(f"{node.identifier} ({Fore.GREEN}-{node.size}{Fore.RESET}) disappeared.")
 
     for node in PreOrderIter(root2):
         n = find(root1, lambda node2: node2.identifier == node.identifier)
-        if not n:
-            if not node.children and node.size != 0:
-                print(f"{node.identifier} ({Fore.RED}+{node.size}{Fore.RESET}) is new.")
+        if not n and not node.children and node.size != 0:
+            print(f"{node.identifier} ({Fore.RED}+{node.size}{Fore.RESET}) is new.")
 
 
 if __name__ == "__main__":

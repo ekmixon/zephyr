@@ -118,13 +118,13 @@ class Device:
         self.hda_gctl.value = 0
         while self.hda_gctl.value != 0:
             time.sleep(0.1)
-        logging.debug("   HDA_GCTL=%s" % self.hda_gctl)
+        logging.debug(f"   HDA_GCTL={self.hda_gctl}")
 
         logging.debug("Controller power up")
         self.hda_gctl.value = 1
         while self.hda_gctl.value != 1:
             time.sleep(0.1)
-        logging.debug("   HDA_GCTL=%s" % self.hda_gctl)
+        logging.debug(f"   HDA_GCTL={self.hda_gctl}")
 
     def enable_proc_pipe_ctl(self):
         logging.debug("Enable processing pipe control")
@@ -140,12 +140,12 @@ class Device:
 
         # Enable processing pipe
         self.hda_ppctl.value = self.hda_ppctl.value | 0x40000000 | dma_mask
-        logging.debug("   HDA_PPCTL=%s" % self.hda_ppctl)
+        logging.debug(f"   HDA_PPCTL={self.hda_ppctl}")
 
     def get_ipc_message(self):
         logging.info("Read IPC message from DSP")
-        logging.info("IPC LEN: %s" % self.ipc_len)
-        logging.info("IPC CMD: %s" % self.ipc_cmd)
+        logging.info(f"IPC LEN: {self.ipc_len}")
+        logging.info(f"IPC CMD: {self.ipc_cmd}")
 
     def core_reset_enter(self, core_mask):
         # Set Reset Bit for cores
@@ -159,7 +159,7 @@ class Device:
         if (reg & reset) != reset:
             raise RuntimeError("Reset enter failed: DSP_CTL_STS=%s core_maks=0x%08X"
                                % (self.dsp_ctl_sts, core_mask))
-        logging.debug("   DSP_CTL_STS=%s" % self.dsp_ctl_sts)
+        logging.debug(f"   DSP_CTL_STS={self.dsp_ctl_sts}")
 
     def core_reset_leave(self, core_mask):
         # Set Reset Bit for cores
@@ -173,13 +173,13 @@ class Device:
         if (reg & leave) != 0:
             raise RuntimeError("Reset leave failed: DSP_CTL_STS=%s core_maks=0x%08X"
                                % (self.dsp_ctl_sts, core_mask))
-        logging.debug("   DSP_CTL_STS=%s" % self.dsp_ctl_sts)
+        logging.debug(f"   DSP_CTL_STS={self.dsp_ctl_sts}")
 
     def core_stall_reset(self, core_mask):
         logging.debug("Stall core(mask=0x%08X)" % core_mask)
         stall = core_mask << regs_def.ADSP_GR_ADSPCS_CSTALL_OFFSET
         self._update_bits(self.dsp_ctl_sts, stall, stall)
-        logging.debug("   DSP_CTL_STS=%s" % self.dsp_ctl_sts)
+        logging.debug(f"   DSP_CTL_STS={self.dsp_ctl_sts}")
         self.core_reset_enter(core_mask)
 
     def core_run(self, core_mask):
@@ -188,7 +188,7 @@ class Device:
         logging.debug("Run/Unstall core(mask=0x%08X)" % core_mask)
         run = core_mask << regs_def.ADSP_GR_ADSPCS_CSTALL_OFFSET
         self._update_bits(self.dsp_ctl_sts, run, 0)
-        logging.debug("   DSP_CTL_STS=%s" % self.dsp_ctl_sts)
+        logging.debug(f"   DSP_CTL_STS={self.dsp_ctl_sts}")
 
     def core_power_down(self, core_mask):
         logging.debug("Power down core(mask=0x%08X)" % core_mask)
@@ -206,9 +206,9 @@ class Device:
             cnt += 1
 
         if cnt == 10:
-            logging.error("   DSP_CTL_STS=%s" % self.dsp_ctl_sts)
+            logging.error(f"   DSP_CTL_STS={self.dsp_ctl_sts}")
             raise RuntimeError("Failed to power down the core")
-        logging.debug("   DSP_CTL_STS=%s" % self.dsp_ctl_sts)
+        logging.debug(f"   DSP_CTL_STS={self.dsp_ctl_sts}")
 
     def core_power_up(self, core_mask):
         logging.debug("Power Up core(mask=0x%08X)" % core_mask)
@@ -227,10 +227,10 @@ class Device:
             cnt += 1
 
         if cnt == 10:
-            logging.error("   DSP_CTL_STS=%s" % self.dsp_ctl_sts)
+            logging.error(f"   DSP_CTL_STS={self.dsp_ctl_sts}")
             raise RuntimeError("Failed to power up the core")
 
-        logging.debug("   DSP_CTL_STS=%s" % self.dsp_ctl_sts)
+        logging.debug(f"   DSP_CTL_STS={self.dsp_ctl_sts}")
 
     @staticmethod
     def _update_bits(reg, mask, value):

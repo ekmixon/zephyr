@@ -21,7 +21,7 @@ def generate_element(image, charcode):
 
     width, height = image.size
     if args.dump:
-        blackwhite.save("{}_{}.png".format(args.name, charcode))
+        blackwhite.save(f"{args.name}_{charcode}.png")
 
     if PRINTABLE_MIN <= charcode <= PRINTABLE_MAX:
         char = " ({:c})".format(charcode)
@@ -32,29 +32,23 @@ def generate_element(image, charcode):
 
     glyph = []
     if args.hpack:
-        for row in range(0, height):
+        for row in range(height):
             packed = []
-            for octet in range(0, int(width / 8)):
+            for octet in range(int(width / 8)):
                 value = ""
-                for bit in range(0, 8):
+                for bit in range(8):
                     col = octet * 8 + bit
-                    if pixels[col, row]:
-                        value = value + "0"
-                    else:
-                        value = value + "1"
+                    value = f"{value}0" if pixels[col, row] else f"{value}1"
                 packed.append(value)
             glyph.append(packed)
     else:
-        for col in range(0, width):
+        for col in range(width):
             packed = []
-            for octet in range(0, int(height / 8)):
+            for octet in range(int(height / 8)):
                 value = ""
-                for bit in range(0, 8):
+                for bit in range(8):
                     row = octet * 8 + bit
-                    if pixels[col, row]:
-                        value = value + "0"
-                    else:
-                        value = value + "1"
+                    value = f"{value}0" if pixels[col, row] else f"{value}1"
                 packed.append(value)
             glyph.append(packed)
     for packed in glyph:
@@ -65,7 +59,10 @@ def generate_element(image, charcode):
             if not args.msb_first:
                 value = value[::-1]
             args.output.write("0x{:02x},".format(int(value, 2)))
-        args.output.write("   /* {} */\n".format(''.join(bits).replace('0', ' ').replace('1', '#')))
+        args.output.write(
+            f"   /* {''.join(bits).replace('0', ' ').replace('1', '#')} */\n"
+        )
+
     args.output.write("\t},\n")
 
 def extract_font_glyphs():
@@ -92,9 +89,9 @@ def extract_font_glyphs():
 
     # Diagnose inconsistencies with arguments
     if width != args.width:
-        raise Exception('text width {} mismatch with -x {}'.format(width, args.width))
+        raise Exception(f'text width {width} mismatch with -x {args.width}')
     if height != args.height:
-        raise Exception('text height {} mismatch with -y {}'.format(height, args.height))
+        raise Exception(f'text height {height} mismatch with -y {args.height}')
 
     for i in range(args.first, args.last + 1):
         image = Image.new('1', (width, height), 'white')
@@ -130,7 +127,7 @@ def generate_header():
         caps.append('MONO_VPACKED')
     if args.msb_first:
         caps.append('MSB_FIRST')
-    caps = ' | '.join(['CFB_FONT_' + f for f in caps])
+    caps = ' | '.join([f'CFB_FONT_{f}' for f in caps])
 
     clean_cmd = []
     for arg in sys.argv:

@@ -38,13 +38,13 @@ def parse_args():
 
 
 def get_nice_string(list_or_iterator):
-    return ", ".join("0x" + str(x) for x in list_or_iterator)
+    return ", ".join(f"0x{str(x)}" for x in list_or_iterator)
 
 
 def make_hex(chunk):
     hexdata = codecs.encode(chunk, 'hex').decode("utf-8")
     hexlist = map(''.join, zip(*[iter(hexdata)] * 2))
-    print(get_nice_string(hexlist) + ',')
+    print(f'{get_nice_string(hexlist)},')
 
 
 def main():

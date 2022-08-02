@@ -51,7 +51,7 @@ scr = os.path.basename(sys.argv[0])
 def debug(text):
     if not args.verbose:
         return
-    sys.stdout.write(scr + ": " + text + "\n")
+    sys.stdout.write(f"{scr}: {text}" + "\n")
 
 def parse_args():
     global args
@@ -98,8 +98,7 @@ def symbol_data(elf, sym):
             return bytes(section.data()[offset:offset + len])
 
 def symbol_handle_data(elf, sym):
-    data = symbol_data(elf, sym)
-    if data:
+    if data := symbol_data(elf, sym):
         format = "<" if elf.little_endian else ">"
         format += "%uh" % (len(data) / 2)
         return struct.unpack(format, data)
@@ -112,9 +111,7 @@ def handle_name(hdl):
         return "DEVICE_HANDLE_SEP"
     if hdl == DEVICE_HANDLE_ENDS:
         return "DEVICE_HANDLE_ENDS"
-    if hdl == 0:
-        return "DEVICE_HANDLE_NULL"
-    return str(int(hdl))
+    return "DEVICE_HANDLE_NULL" if hdl == 0 else str(int(hdl))
 
 class Device:
     """
@@ -172,10 +169,13 @@ def main():
     devices = []
     handles = []
     # Leading _ are stripped from the stored constant key
-    want_constants = set(["__device_start",
-                          "_DEVICE_STRUCT_SIZEOF",
-                          "_DEVICE_STRUCT_HANDLES_OFFSET"])
-    ld_constants = dict()
+    want_constants = {
+        "__device_start",
+        "_DEVICE_STRUCT_SIZEOF",
+        "_DEVICE_STRUCT_HANDLES_OFFSET",
+    }
+
+    ld_constants = {}
 
     for section in elf.iter_sections():
         if isinstance(section, SymbolTableSection):
@@ -189,7 +189,7 @@ def main():
                     addr = sym.entry.st_value
                     if sym.name.startswith("__device_"):
                         devices.append(Device(elf, ld_constants, sym, addr))
-                        debug("device %s" % (sym.name,))
+                        debug(f"device {sym.name}")
                     elif sym.name.startswith("__devicehdl_"):
                         hdls = symbol_handle_data(elf, sym)
 
@@ -217,7 +217,7 @@ def main():
                 handle.device = device
                 break
         device = handle.device
-        assert device, 'no device for %s' % (handle.sym.name,)
+        assert device, f'no device for {handle.sym.name}'
 
         device.handle = handle
 
@@ -264,7 +264,7 @@ def main():
 
         deps = set(sn.depends_on)
         debug("\nNode: %s\nOrig deps:\n\t%s" % (sn.path, "\n\t".join([dn.path for dn in deps])))
-        while len(deps) > 0:
+        while deps:
             dn = deps.pop()
             if dn in used_nodes:
                 # this is used
@@ -281,7 +281,7 @@ def main():
 
         for dev in devices:
             hs = dev.handle
-            assert hs, "no hs for %s" % (dev.sym.name,)
+            assert hs, f"no hs for {dev.sym.name}"
             dep_paths = []
             ext_paths = []
             hdls = []
@@ -293,7 +293,7 @@ def main():
                     if dn in sn.__depends:
                         dep_paths.append(dn.path)
                     else:
-                        dep_paths.append('(%s)' % dn.path)
+                        dep_paths.append(f'({dn.path})')
             if len(hs.ext_deps) > 0:
                 # TODO: map these to something smaller?
                 ext_paths.extend(map(str, hs.ext_deps))
@@ -306,16 +306,16 @@ def main():
             # final elf to change.
             while len(hdls) < len(hs.handles):
                 hdls.append(DEVICE_HANDLE_ENDS)
-            assert len(hdls) == len(hs.handles), "%s handle overflow" % (dev.sym.name,)
+            assert len(hdls) == len(hs.handles), f"{dev.sym.name} handle overflow"
 
             lines = [
                 '',
                 '/* %d : %s:' % (dev.dev_handle, (sn and sn.path) or "sysinit"),
             ]
 
-            if len(dep_paths) > 0:
+            if dep_paths:
                 lines.append(' * - %s' % ('\n * - '.join(dep_paths)))
-            if len(ext_paths) > 0:
+            if ext_paths:
                 lines.append(' * + %s' % ('\n * + '.join(ext_paths)))
 
             lines.extend([

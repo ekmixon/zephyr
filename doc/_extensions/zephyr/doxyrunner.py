@@ -97,17 +97,16 @@ def get_doxygen_option(doxyfile: str, option: str) -> List[str]:
     for line in doxyfile.splitlines():
         if not found:
             m = option_re.match(line)
-            if not m or m.group(1) != option:
+            if not m or m[1] != option:
                 continue
 
             found = True
-            value = m.group(2)
-        else:
-            m = multiline_re.match(line)
-            if not m:
-                raise ValueError(f"Unexpected line content: {line}")
+            value = m[2]
+        elif m := multiline_re.match(line):
+            value = m[1]
 
-            value = m.group(1)
+        else:
+            raise ValueError(f"Unexpected line content: {line}")
 
         # check if it is a multiline value
         finished = not value.endswith("\\")
@@ -151,9 +150,7 @@ def process_doxyfile(
         Processed Doxyfile content.
     """
 
-    with open(doxyfile) as f:
-        content = f.read()
-
+    content = Path(doxyfile).read_text()
     content = re.sub(
         r"^\s*OUTPUT_DIRECTORY\s*=.*$",
         f"OUTPUT_DIRECTORY={outdir.as_posix()}",
@@ -213,7 +210,7 @@ def doxygen_input_has_changed(env: BuildEnvironment, doxyfile: str) -> bool:
             cache.add(hash_file(path))
         else:
             for pattern in file_patterns:
-                for p_file in path.glob("**/" + pattern):
+                for p_file in path.glob(f"**/{pattern}"):
                     cache.add(hash_file(p_file))
 
     # check if any file has changed
@@ -238,10 +235,9 @@ def process_doxygen_output(line: str, silent: bool) -> None:
         silent: True if regular messages should be logged, False otherwise.
     """
 
-    m = re.match(r"(.*):(\d+): ([a-z]+): (.*)", line)
-    if m:
-        type = m.group(3)
-        message = f"{m.group(1)}:{m.group(2)}: {m.group(4)}"
+    if m := re.match(r"(.*):(\d+): ([a-z]+): (.*)", line):
+        type = m[3]
+        message = f"{m[1]}:{m[2]}: {m[4]}"
         if type == "error":
             logger.error(message)
         elif type == "warning":
@@ -267,8 +263,7 @@ def run_doxygen(doxygen: str, doxyfile: str, silent: bool = False) -> None:
 
     p = Popen([doxygen, f_doxyfile.name], stdout=PIPE, stderr=STDOUT, encoding="utf-8")
     while True:
-        line = p.stdout.readline()  # type: ignore
-        if line:
+        if line := p.stdout.readline():
             process_doxygen_output(line.rstrip(), silent)
         if p.poll() is not None:
             break

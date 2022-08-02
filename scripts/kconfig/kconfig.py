@@ -26,7 +26,7 @@ def main():
     if args.zephyr_base:
         os.environ['ZEPHYR_BASE'] = args.zephyr_base
 
-    print("Parsing " + args.kconfig_file)
+    print(f"Parsing {args.kconfig_file}")
     kconf = Kconfig(args.kconfig_file, warn_to_stderr=False,
                     suppress_traceback=True)
 
@@ -96,10 +96,12 @@ def check_no_promptless_assign(kconf):
 
     for sym in kconf.unique_defined_syms:
         if sym.user_value is not None and promptless(sym):
-            err(f"""\
+            err(
+                f"""\
 {sym.name_and_loc} is assigned in a configuration file, but is not directly
 user-configurable (has no prompt). It gets its value indirectly from other
-symbols. """ + SYM_INFO_HINT.format(sym))
+symbols. {SYM_INFO_HINT.format(sym)}"""
+            )
 
 
 def check_assigned_sym_values(kconf):
@@ -124,9 +126,7 @@ def check_assigned_sym_values(kconf):
             msg = f"{sym.name_and_loc} was assigned the value '{user_value}'" \
                   f" but got the value '{sym.str_value}'. "
 
-            # List any unsatisfied 'depends on' dependencies in the warning
-            mdeps = missing_deps(sym)
-            if mdeps:
+            if mdeps := missing_deps(sym):
                 expr_strs = []
                 for expr in mdeps:
                     estr = expr_str(expr)
@@ -186,10 +186,12 @@ def check_assigned_choice_values(kconf):
         if choice.user_selection and \
            choice.user_selection is not choice.selection:
 
-            warn(f"""\
+            warn(
+                f"""\
 The choice symbol {choice.user_selection.name_and_loc} was selected (set =y),
 but {choice.selection.name_and_loc if choice.selection else "no symbol"} ended
-up as the choice selection. """ + SYM_INFO_HINT.format(choice.user_selection))
+up as the choice selection. {SYM_INFO_HINT.format(choice.user_selection)}"""
+            )
 
 
 # Hint on where to find symbol information. Used like
@@ -253,11 +255,11 @@ def warn(msg):
     # reference link, and add some extra newlines to set the message off from
     # surrounding text (this usually gets printed as part of spammy CMake
     # output)
-    print("\n" + textwrap.fill("warning: " + msg, 100) + "\n", file=sys.stderr)
+    print("\n" + textwrap.fill(f"warning: {msg}", 100) + "\n", file=sys.stderr)
 
 
 def err(msg):
-    sys.exit("\n" + textwrap.fill("error: " + msg, 100) + "\n")
+    sys.exit("\n" + textwrap.fill(f"error: {msg}", 100) + "\n")
 
 
 if __name__ == "__main__":

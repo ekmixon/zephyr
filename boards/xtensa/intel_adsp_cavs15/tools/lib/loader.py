@@ -107,7 +107,7 @@ class FirmwareLoader():
         boot_config = boot_config | ((self.dma_id - 7) << 9)
         self.dev.dsp_hipci.value = boot_config
         time.sleep(0.1)
-        logging.debug("   DSP_HIPCI=%s" % self.dev.dsp_hipci)
+        logging.debug(f"   DSP_HIPCI={self.dev.dsp_hipci}")
 
         self.dev.core_power_up(plat_def.CORE_MASK)
         self.dev.core_run(plat_def.CORE_0)
@@ -181,7 +181,7 @@ class FirmwareLoader():
             return sd
 
     def download_firmware(self, fw_file):
-        logging.debug(">>> FirmwareLoader.download_firmware(fw_file=%s)" % fw_file)
+        logging.debug(f">>> FirmwareLoader.download_firmware(fw_file={fw_file})")
 
         # Load firmware to DMA buffer and update SD and SDL
         sd = self.load_firmware(fw_file)

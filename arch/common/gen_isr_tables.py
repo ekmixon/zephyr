@@ -29,16 +29,13 @@ THIRD_LVL_INTERRUPTS = 0x00FF0000
 
 def debug(text):
     if args.debug:
-        sys.stdout.write(os.path.basename(sys.argv[0]) + ": " + text + "\n")
+        sys.stdout.write(f"{os.path.basename(sys.argv[0])}: {text}" + "\n")
 
 def error(text):
-    sys.exit(os.path.basename(sys.argv[0]) + ": error: " + text + "\n")
+    sys.exit(f"{os.path.basename(sys.argv[0])}: error: {text}" + "\n")
 
 def endian_prefix():
-    if args.big_endian:
-        return ">"
-    else:
-        return "<"
+    return ">" if args.big_endian else "<"
 
 def read_intlist(intlist_path, syms):
     """read a binary file containing the contents of the kernel's .intList
@@ -65,15 +62,13 @@ def read_intlist(intlist_path, syms):
     };
     """
 
-    intlist = {}
-
     prefix = endian_prefix()
 
-    intlist_header_fmt = prefix + "II"
+    intlist_header_fmt = f"{prefix}II"
     if "CONFIG_64BIT" in syms:
-        intlist_entry_fmt = prefix + "iiQQ"
+        intlist_entry_fmt = f"{prefix}iiQQ"
     else:
-        intlist_entry_fmt = prefix + "iiII"
+        intlist_entry_fmt = f"{prefix}iiII"
 
     with open(intlist_path, "rb") as fp:
         intdata = fp.read()
@@ -84,11 +79,11 @@ def read_intlist(intlist_path, syms):
 
     debug(str(header))
 
-    intlist["num_vectors"]    = header[0]
-    intlist["offset"]         = header[1]
-
-    intlist["interrupts"] = [i for i in
-            struct.iter_unpack(intlist_entry_fmt, intdata)]
+    intlist = {
+        "num_vectors": header[0],
+        "offset": header[1],
+        "interrupts": list(struct.iter_unpack(intlist_entry_fmt, intdata)),
+    }
 
     debug("Configured interrupt routing")
     debug("handler    irq flags param")
@@ -150,7 +145,7 @@ def write_source_file(fp, vt, swt, intlist, syms):
     if vt:
         fp.write("uintptr_t __irq_vector_table _irq_vector_table[%d] = {\n" % nv)
         for i in range(nv):
-            fp.write("\t{},\n".format(vt[i]))
+            fp.write(f"\t{vt[i]},\n")
         fp.write("};\n")
 
     if not swt:
@@ -164,17 +159,11 @@ def write_source_file(fp, vt, swt, intlist, syms):
 
     for i in range(nv):
         param, func = swt[i]
-        if isinstance(func, int):
-            func_as_string = "{0:#x}".format(func)
-        else:
-            func_as_string = func
-
+        func_as_string = "{0:#x}".format(func) if isinstance(func, int) else func
         if level2_offset is not None and i == level2_offset:
-            fp.write("\t/* Level 2 interrupts start here (offset: {}) */\n".
-                     format(level2_offset))
+            fp.write(f"\t/* Level 2 interrupts start here (offset: {level2_offset}) */\n")
         if level3_offset is not None and i == level3_offset:
-            fp.write("\t/* Level 3 interrupts start here (offset: {}) */\n".
-                     format(level3_offset))
+            fp.write(f"\t/* Level 3 interrupts start here (offset: {level3_offset}) */\n")
 
         fp.write("\t{{(const void *){0:#x}, (ISR){1}}},\n".format(param, func_as_string))
     fp.write("};\n")
@@ -191,9 +180,12 @@ def getindex(irq, irq_aggregator_pos):
     try:
         return irq_aggregator_pos.index(irq)
     except ValueError:
-        error("IRQ {} not present in parent offsets ({}). ".
-              format(irq, irq_aggregator_pos) +
-              " Recheck interrupt configuration.")
+        error(
+            (
+                f"IRQ {irq} not present in parent offsets ({irq_aggregator_pos}). "
+                + " Recheck interrupt configuration."
+            )
+        )
 
 def main():
     parse_args()
@@ -208,20 +200,24 @@ def main():
         if "CONFIG_2ND_LEVEL_INTERRUPTS" in syms:
             num_aggregators = syms["CONFIG_NUM_2ND_LEVEL_AGGREGATORS"]
             irq2_baseoffset = syms["CONFIG_2ND_LVL_ISR_TBL_OFFSET"]
-            list_2nd_lvl_offsets = [syms['CONFIG_2ND_LVL_INTR_{}_OFFSET'.
-                                         format(str(i).zfill(2))] for i in
-                                    range(num_aggregators)]
+            list_2nd_lvl_offsets = [
+                syms[f'CONFIG_2ND_LVL_INTR_{str(i).zfill(2)}_OFFSET']
+                for i in range(num_aggregators)
+            ]
 
-            debug('2nd level offsets: {}'.format(list_2nd_lvl_offsets))
+
+            debug(f'2nd level offsets: {list_2nd_lvl_offsets}')
 
             if "CONFIG_3RD_LEVEL_INTERRUPTS" in syms:
                 num_aggregators = syms["CONFIG_NUM_3RD_LEVEL_AGGREGATORS"]
                 irq3_baseoffset = syms["CONFIG_3RD_LVL_ISR_TBL_OFFSET"]
-                list_3rd_lvl_offsets = [syms['CONFIG_3RD_LVL_INTR_{}_OFFSET'.
-                                             format(str(i).zfill(2))] for i in
-                                        range(num_aggregators)]
+                list_3rd_lvl_offsets = [
+                    syms[f'CONFIG_3RD_LVL_INTR_{str(i).zfill(2)}_OFFSET']
+                    for i in range(num_aggregators)
+                ]
 
-                debug('3rd level offsets: {}'.format(list_3rd_lvl_offsets))
+
+                debug(f'3rd level offsets: {list_3rd_lvl_offsets}')
 
     intlist = read_intlist(args.intlist, syms)
     nvec = intlist["num_vectors"]
@@ -231,25 +227,22 @@ def main():
         raise ValueError('nvec is too large, check endianness.')
 
     spurious_handler = "&z_irq_spurious"
-    sw_irq_handler   = "ISR_WRAPPER"
-
-    debug('offset is ' + str(offset))
-    debug('num_vectors is ' + str(nvec))
+    debug(f'offset is {str(offset)}')
+    debug(f'num_vectors is {str(nvec)}')
 
     # Set default entries in both tables
     if args.sw_isr_table:
+        sw_irq_handler   = "ISR_WRAPPER"
+
         # All vectors just jump to the common sw_irq_handler. If some entries
         # are used for direct interrupts, they will be replaced later.
-        if args.vector_table:
-            vt = [sw_irq_handler for i in range(nvec)]
-        else:
-            vt = None
+        vt = [sw_irq_handler for _ in range(nvec)] if args.vector_table else None
         # Default to spurious interrupt handler. Configured interrupts
         # will replace these entries.
-        swt = [(0, spurious_handler) for i in range(nvec)]
+        swt = [(0, spurious_handler) for _ in range(nvec)]
     else:
         if args.vector_table:
-            vt = [spurious_handler for i in range(nvec)]
+            vt = [spurious_handler for _ in range(nvec)]
         else:
             error("one or both of -s or -V needs to be specified on command line")
         swt = None
@@ -270,11 +263,11 @@ def main():
                         "but no SW ISR_TABLE in use"
                         % (irq, param))
 
-            if not "CONFIG_MULTI_LEVEL_INTERRUPTS" in syms:
+            if "CONFIG_MULTI_LEVEL_INTERRUPTS" not in syms:
                 table_index = irq - offset
             else:
                 # Figure out third level interrupt position
-                debug('IRQ = ' + hex(irq))
+                debug(f'IRQ = {hex(irq)}')
                 irq3 = (irq & THIRD_LVL_INTERRUPTS) >> 16
                 irq2 = (irq & SECND_LVL_INTERRUPTS) >> 8
                 irq1 = (irq & FIRST_LVL_INTERRUPTS)
@@ -284,25 +277,23 @@ def main():
                     list_index = getindex(irq_parent, list_3rd_lvl_offsets)
                     irq3_pos = irq3_baseoffset + max_irq_per*list_index + irq3 - 1
                     debug('IRQ_level = 3')
-                    debug('IRQ_Indx = ' + str(irq3))
-                    debug('IRQ_Pos  = ' + str(irq3_pos))
+                    debug(f'IRQ_Indx = {str(irq3)}')
+                    debug(f'IRQ_Pos  = {str(irq3_pos)}')
                     table_index = irq3_pos - offset
 
-                # Figure out second level interrupt position
                 elif irq2:
                     irq_parent = irq1
                     list_index = getindex(irq_parent, list_2nd_lvl_offsets)
                     irq2_pos = irq2_baseoffset + max_irq_per*list_index + irq2 - 1
                     debug('IRQ_level = 2')
-                    debug('IRQ_Indx = ' + str(irq2))
-                    debug('IRQ_Pos  = ' + str(irq2_pos))
+                    debug(f'IRQ_Indx = {str(irq2)}')
+                    debug(f'IRQ_Pos  = {str(irq2_pos)}')
                     table_index = irq2_pos - offset
 
-                # Figure out first level interrupt position
                 else:
                     debug('IRQ_level = 1')
-                    debug('IRQ_Indx = ' + str(irq1))
-                    debug('IRQ_Pos  = ' + str(irq1))
+                    debug(f'IRQ_Indx = {str(irq1)}')
+                    debug(f'IRQ_Pos  = {str(irq1)}')
                     table_index = irq1 - offset
 
             if not 0 <= table_index < len(swt):

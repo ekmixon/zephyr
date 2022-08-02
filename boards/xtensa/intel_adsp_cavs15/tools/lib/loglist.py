@@ -8,7 +8,7 @@ from ctypes import string_at
 
 MAGIC = 0x55aa
 SLOT_LEN = 64
-SLOT_NUM = int(8192 / SLOT_LEN)
+SLOT_NUM = 8192 // SLOT_LEN
 
 def read_bytes(buffer):
     return int.from_bytes(buffer, byteorder='little')
@@ -32,7 +32,7 @@ class Loglist:
         self.debug = debug
 
     def parse_slot(self, slot):
-        magic = read_bytes(slot[0:2])
+        magic = read_bytes(slot[:2])
 
         if magic == MAGIC:
             id_num = read_bytes(slot[2:4])
@@ -41,7 +41,7 @@ class Loglist:
             self.loglist.append((id_num, logstr))
 
     def parse(self):
-        for x in range(0, SLOT_NUM):
+        for x in range(SLOT_NUM):
             slot = self.buffer[x * SLOT_LEN : (x + 1) * SLOT_LEN]
             self.parse_slot(slot)
 
@@ -51,4 +51,4 @@ class Loglist:
                 # Add slot number when debug is enabled
                 print('[{}] : {}'.format(*pair), end='')
             else:
-                print('{}'.format(pair[1]), end='')
+                print(f'{pair[1]}', end='')

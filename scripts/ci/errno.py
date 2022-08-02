@@ -22,8 +22,7 @@ def parse_errno(path):
         r = re.compile(r'^\s*#define\s+([A-Z]+)\s+([0-9]+)')
         errnos = []
         for line in f:
-            m = r.match(line)
-            if m:
+            if m := r.match(line):
                 errnos.append(m.groups())
 
     return errnos

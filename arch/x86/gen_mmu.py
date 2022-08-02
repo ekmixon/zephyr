@@ -116,18 +116,18 @@ def debug(text):
     """Display verbose debug message"""
     if not args.verbose:
         return
-    sys.stdout.write(os.path.basename(sys.argv[0]) + ": " + text + "\n")
+    sys.stdout.write(f"{os.path.basename(sys.argv[0])}: {text}" + "\n")
 
 
 def verbose(text):
     """Display --verbose --verbose message"""
     if args.verbose and args.verbose > 1:
-        sys.stdout.write(os.path.basename(sys.argv[0]) + ": " + text + "\n")
+        sys.stdout.write(f"{os.path.basename(sys.argv[0])}: {text}" + "\n")
 
 
 def error(text):
     """Display error message and exit program"""
-    sys.exit(os.path.basename(sys.argv[0]) + ": " + text)
+    sys.exit(f"{os.path.basename(sys.argv[0])}: {text}")
 
 
 def align_check(base, size, scope=4096):
@@ -184,13 +184,14 @@ class MMUTable():
     """Represents a particular table in a set of page tables, at any level"""
 
     def __init__(self):
-        self.entries = array.array(self.type_code,
-                                   [0 for i in range(self.num_entries)])
+        self.entries = array.array(
+            self.type_code, [0 for _ in range(self.num_entries)]
+        )
 
     def get_binary(self):
         """Return a bytearray representation of this table"""
         # Always little-endian
-        ctype = "<" + self.type_code
+        ctype = f"<{self.type_code}"
         entry_size = struct.calcsize(ctype)
         ret = bytearray(entry_size * self.num_entries)
 
@@ -377,7 +378,7 @@ class PtableSet():
         has_mapping = False
 
         # Create and link up intermediate tables if necessary
-        for depth in range(0, num_levels):
+        for depth in range(num_levels):
             # Create child table if needed
             if table.has_entry(virt_addr):
                 if depth == num_levels:
@@ -394,11 +395,10 @@ class PtableSet():
     def is_region_mapped(self, virt_base, size, level=PT_LEVEL):
         """Find out if a region has been mapped"""
         align_check(virt_base, size)
-        for vaddr in range(virt_base, virt_base + size, 4096):
-            if self.is_mapped(vaddr, level):
-                return True
-
-        return False
+        return any(
+            self.is_mapped(vaddr, level)
+            for vaddr in range(virt_base, virt_base + size, 4096)
+        )
 
     def new_child_table(self, table, virt_addr, depth):
         """Create a new child table"""
@@ -421,10 +421,11 @@ class PtableSet():
         # Create and link up intermediate tables if necessary
         for depth in range(1, num_levels):
             # Create child table if needed
-            if not table.has_entry(virt_addr):
-                table = self.new_child_table(table, virt_addr, depth)
-            else:
-                table = self.tables[table.lookup(virt_addr)]
+            table = (
+                self.tables[table.lookup(virt_addr)]
+                if table.has_entry(virt_addr)
+                else self.new_child_table(table, virt_addr, depth)
+            )
 
         # Set up entry in leaf page table
         if not reserve:
@@ -495,12 +496,12 @@ class PtableSet():
 
     def map_region(self, name, flags, virt_to_phys_offset, level=PT_LEVEL):
         """Map a named region"""
-        if not isdef(name + "_start"):
+        if not isdef(f"{name}_start"):
             # Region may not exists
             return
 
-        region_start = syms[name + "_start"]
-        region_end = syms[name + "_end"]
+        region_start = syms[f"{name}_start"]
+        region_end = syms[f"{name}_end"]
         region_size = region_end - region_start
 
         region_start_phys = region_start
@@ -516,18 +517,18 @@ class PtableSet():
         The bounds of the region will be looked up in the symbol table
         with _start and _size suffixes. The physical address mapping
         is unchanged and this will not disturb any double-mapping."""
-        if not isdef(name + "_start"):
+        if not isdef(f"{name}_start"):
             # Region may not exists
             return
 
         # Doesn't matter if this is a virtual address, we have a
         # either dual mapping or it's the same as physical
-        base = syms[name + "_start"]
+        base = syms[f"{name}_start"]
 
-        if isdef(name + "_size"):
-            size = syms[name + "_size"]
+        if isdef(f"{name}_size"):
+            size = syms[f"{name}_size"]
         else:
-            region_end = syms[name + "_end"]
+            region_end = syms[f"{name}_end"]
             size = region_end - base
 
         if size == 0:
@@ -662,14 +663,15 @@ def map_extra_regions(pt):
         elements = entry.split(',')
 
         if len(elements) < 2:
-            error("Not enough arguments for --map %s" % entry)
+            error(f"Not enough arguments for --map {entry}")
 
-        one_map = {}
+        one_map = {
+            'cmdline': entry,
+            'phys': int(elements[0], 16),
+            'size': int(elements[1], 16),
+            'large_page': False,
+        }
 
-        one_map['cmdline'] = entry
-        one_map['phys'] = int(elements[0], 16)
-        one_map['size']= int(elements[1], 16)
-        one_map['large_page'] = False
 
         flags = FLAG_P | ENTRY_XD
         if len(elements) > 2:
@@ -677,7 +679,7 @@ def map_extra_regions(pt):
 
             # Check for allowed flags
             if not bool(re.match('^[LUWXD]*$', map_flags)):
-                error("Unrecognized flags: %s" % map_flags)
+                error(f"Unrecognized flags: {map_flags}")
 
             flags = FLAG_P | ENTRY_XD
             if 'W' in map_flags:
@@ -729,8 +731,7 @@ def main():
         kernel = ELFFile(elf_fp)
         syms = get_symbols(kernel)
 
-        sym_dummy_pagetables = find_symbol(kernel, "dummy_pagetables")
-        if sym_dummy_pagetables:
+        if sym_dummy_pagetables := find_symbol(kernel, "dummy_pagetables"):
             reserved_pt_size = sym_dummy_pagetables['st_size']
         else:
             reserved_pt_size = None
@@ -742,7 +743,7 @@ def main():
     else:
         pclass = Ptables32bit
 
-    debug("building %s" % pclass.__name__)
+    debug(f"building {pclass.__name__}")
 
     vm_base = syms["CONFIG_KERNEL_VM_BASE"]
     vm_size = syms["CONFIG_KERNEL_VM_SIZE"]
@@ -754,11 +755,7 @@ def main():
     mapped_kernel_base = syms["z_mapped_start"]
     mapped_kernel_size = syms["z_mapped_size"]
 
-    if isdef("CONFIG_SRAM_OFFSET"):
-        sram_offset = syms["CONFIG_SRAM_OFFSET"]
-    else:
-        sram_offset = 0
-
+    sram_offset = syms["CONFIG_SRAM_OFFSET"] if isdef("CONFIG_SRAM_OFFSET") else 0
     # Figure out if there is any need to do virtual-to-physical
     # address translation
     virt_to_phys_offset = (sram_base + sram_offset) - (vm_base + vm_offset)
@@ -789,13 +786,7 @@ def main():
     if image_size >= vm_size:
         error("VM size is too small (have 0x%x need more than 0x%x)" % (vm_size, image_size))
 
-    if is_perm_regions:
-        # Don't allow execution by default for any pages. We'll adjust this
-        # in later calls to pt.set_region_perms()
-        map_flags = FLAG_P |  ENTRY_XD
-    else:
-        map_flags = FLAG_P
-
+    map_flags = FLAG_P |  ENTRY_XD if is_perm_regions else FLAG_P
     pt = pclass(ptables_phys)
     # Instantiate all the paging structures for the address space
     pt.reserve(vm_base, vm_size)
@@ -878,16 +869,7 @@ def main():
             # Set appropriate permissions for locore areas much like we did
             # with the main text/rodata regions
 
-            if isdef("CONFIG_X86_KPTI"):
-                # Set the User bit for the read-only locore/lorodata areas.
-                # This ensures they get mapped into the User page tables if
-                # KPTI is turned on. There is no sensitive data in them, and
-                # they contain text/data needed to take an exception or
-                # interrupt.
-                flag_user = ENTRY_US
-            else:
-                flag_user = 0
-
+            flag_user = ENTRY_US if isdef("CONFIG_X86_KPTI") else 0
             pt.set_region_perms("_locore", FLAG_P | flag_user)
             pt.set_region_perms("_lorodata", FLAG_P | ENTRY_XD | flag_user)
 

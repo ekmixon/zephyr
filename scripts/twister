@@ -242,7 +242,7 @@ def export_tests(filename, tests):
                 }
                 cw.writerow(rowdict)
             else:
-                logger.error("{} can't be exported: ".format(test))
+                logger.error(f"{test} can't be exported: ")
 
 
 def parse_arguments():
@@ -553,8 +553,11 @@ Artificially long but functional example:
              "called multiple times. Defaults to the 'samples/' and "
              "'tests/' directories at the base of the Zephyr tree.")
 
-    board_root_list = ["%s/boards" % ZEPHYR_BASE,
-                       "%s/scripts/pylib/twister/boards" % ZEPHYR_BASE]
+    board_root_list = [
+        f"{ZEPHYR_BASE}/boards",
+        f"{ZEPHYR_BASE}/scripts/pylib/twister/boards",
+    ]
+
 
     parser.add_argument(
         "-A", "--board-root", action="append", default=board_root_list,

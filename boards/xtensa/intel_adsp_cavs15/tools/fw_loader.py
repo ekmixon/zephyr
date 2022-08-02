@@ -17,7 +17,7 @@ def check_args(args):
     # Check if firmware exists
     firmware_abs = os.path.abspath(args.firmware)
     if not os.path.exists(firmware_abs):
-        raise ValueError("File not found: %s" % firmware_abs)
+        raise ValueError(f"File not found: {firmware_abs}")
 
 
 def parse_args():
@@ -36,9 +36,7 @@ def main():
 
     args = parse_args()
 
-    log_level = logging.INFO
-    if args.debug:
-        log_level = logging.DEBUG
+    log_level = logging.DEBUG if args.debug else logging.INFO
     logging.basicConfig(level=log_level, format="%(message)s")
 
     logging.info("Start firmware downloading...")
@@ -50,8 +48,8 @@ def main():
     logging.info("Reset DSP...")
     fw_loader.reset_dsp()
     FirmwareStatus(fw_loader.dev.fw_status.value).print()
-    logging.info("   IPC CMD  : %s" % fw_loader.dev.ipc_cmd)
-    logging.info("   IPC LEN  : %s" % fw_loader.dev.ipc_len)
+    logging.info(f"   IPC CMD  : {fw_loader.dev.ipc_cmd}")
+    logging.info(f"   IPC LEN  : {fw_loader.dev.ipc_len}")
 
     logging.info("Booting up DSP...")
     fw_loader.boot_dsp()

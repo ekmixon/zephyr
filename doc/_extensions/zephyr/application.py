@@ -140,19 +140,19 @@ class ZephyrAppCommandsDirective(Directive):
         compact = 'compact' in self.options
 
         if tool not in self.TOOLS:
-            raise self.error('Unknown tool {}; choose from: {}'.format(
-                tool, self.TOOLS))
+            raise self.error(f'Unknown tool {tool}; choose from: {self.TOOLS}')
 
         if app and zephyr_app:
             raise self.error('Both app and zephyr-app options were given.')
 
         if generator not in self.GENERATORS:
-            raise self.error('Unknown generator {}; choose from: {}'.format(
-                generator, self.GENERATORS))
+            raise self.error(
+                f'Unknown generator {generator}; choose from: {self.GENERATORS}'
+            )
+
 
         if host_os not in self.HOST_OS:
-            raise self.error('Unknown host-os {}; choose from: {}'.format(
-                host_os, self.HOST_OS))
+            raise self.error(f'Unknown host-os {host_os}; choose from: {self.HOST_OS}')
 
         if compact and skip_config:
             raise self.error('Both compact and maybe-skip-config options were given.')
@@ -170,10 +170,7 @@ class ZephyrAppCommandsDirective(Directive):
                                                 if v != 'all']
         # Build the command content as a list, then convert to string.
         content = []
-        tool_comment = None
-        if len(tools) > 1:
-            tool_comment = 'Using {}:'
-
+        tool_comment = 'Using {}:' if len(tools) > 1 else None
         run_config = {
             'host_os': host_os,
             'app': app,
@@ -196,8 +193,7 @@ class ZephyrAppCommandsDirective(Directive):
             if tool_comment:
                 paragraph = nodes.paragraph()
                 paragraph += nodes.Text(tool_comment.format('west'))
-                content.append(paragraph)
-                content.append(self._lit_block(w))
+                content.extend((paragraph, self._lit_block(w)))
             else:
                 content.extend(w)
 
@@ -205,10 +201,8 @@ class ZephyrAppCommandsDirective(Directive):
             c = self._generate_cmake(**run_config)
             if tool_comment:
                 paragraph = nodes.paragraph()
-                paragraph += nodes.Text(tool_comment.format(
-                    'CMake and {}'.format(generator)))
-                content.append(paragraph)
-                content.append(self._lit_block(c))
+                paragraph += nodes.Text(tool_comment.format(f'CMake and {generator}'))
+                content.extend((paragraph, self._lit_block(c)))
             else:
                 content.extend(c)
 
@@ -241,17 +235,17 @@ class ZephyrAppCommandsDirective(Directive):
         # west always defaults to ninja
         gen_arg = ' -G\'Unix Makefiles\'' if generator == 'make' else ''
         cmake_args = gen_arg + self._cmake_args(**kwargs)
-        cmake_args = ' --{}'.format(cmake_args) if cmake_args != '' else ''
+        cmake_args = f' --{cmake_args}' if cmake_args != '' else ''
         # ignore zephyr_app since west needs to run within
         # the installation. Instead rely on relative path.
-        src = ' {}'.format(app) if app and not cd_into else ''
-        dst = ' -d {}'.format(build_dir) if build_dir != 'build' else ''
+        src = f' {app}' if app and not cd_into else ''
+        dst = f' -d {build_dir}' if build_dir != 'build' else ''
 
         if in_tree and not compact:
             content.append(in_tree)
 
         if cd_into and app:
-            content.append('cd {}'.format(app))
+            content.append(f'cd {app}')
 
         # We always have to run west build.
         #
@@ -263,28 +257,27 @@ class ZephyrAppCommandsDirective(Directive):
         # defaulting to west.
         #
         # For now, this keeps the resulting commands working.
-        content.append('west build -b {}{}{}{}'.
-                       format(board, dst, src, cmake_args))
+        content.append(f'west build -b {board}{dst}{src}{cmake_args}')
 
         # If we're signing, we want to do that next, so that flashing
         # etc. commands can use the signed file which must be created
         # in this step.
         if 'sign' in goals:
-            content.append('west sign{}'.format(dst))
+            content.append(f'west sign{dst}')
 
         for goal in goals:
             if goal in {'build', 'sign'}:
                 continue
             elif goal == 'flash':
-                content.append('west flash{}'.format(dst))
+                content.append(f'west flash{dst}')
             elif goal == 'debug':
-                content.append('west debug{}'.format(dst))
+                content.append(f'west debug{dst}')
             elif goal == 'debugserver':
-                content.append('west debugserver{}'.format(dst))
+                content.append(f'west debugserver{dst}')
             elif goal == 'attach':
-                content.append('west attach{}'.format(dst))
+                content.append(f'west attach{dst}')
             else:
-                content.append('west build -t {}{}'.format(goal, dst))
+                content.append(f'west build -t {goal}{dst}')
 
         return content
 
@@ -292,14 +285,17 @@ class ZephyrAppCommandsDirective(Directive):
     def _mkdir(mkdir, build_dir, host_os, skip_config):
         content = []
         if skip_config:
-            content.append("# If you already made a build directory ({}) and ran cmake, just 'cd {}' instead.".format(build_dir, build_dir))  # noqa: E501
+            content.append(
+                f"# If you already made a build directory ({build_dir}) and ran cmake, just 'cd {build_dir}' instead."
+            )
+
         if host_os == 'all':
-            content.append('mkdir {} && cd {}'.format(build_dir, build_dir))
+            content.append(f'mkdir {build_dir} && cd {build_dir}')
         if host_os == "unix":
-            content.append('{} {} && cd {}'.format(mkdir, build_dir, build_dir))
+            content.append(f'{mkdir} {build_dir} && cd {build_dir}')
         elif host_os == "win":
             build_dir = build_dir.replace('/', '\\')
-            content.append('mkdir {} & cd {}'.format(build_dir, build_dir))
+            content.append(f'mkdir {build_dir} & cd {build_dir}')
         return content
 
     @staticmethod
@@ -308,12 +304,12 @@ class ZephyrAppCommandsDirective(Directive):
         shield = kwargs['shield']
         conf = kwargs['conf']
         gen_args = kwargs['gen_args']
-        board_arg = ' -DBOARD={}'.format(board) if board else ''
-        shield_arg = ' -DSHIELD={}'.format(shield) if shield else ''
-        conf_arg = ' -DCONF_FILE={}'.format(conf) if conf else ''
-        gen_args = ' {}'.format(gen_args) if gen_args else ''
+        board_arg = f' -DBOARD={board}' if board else ''
+        shield_arg = f' -DSHIELD={shield}' if shield else ''
+        conf_arg = f' -DCONF_FILE={conf}' if conf else ''
+        gen_args = f' {gen_args}' if gen_args else ''
 
-        return '{}{}{}{}'.format(board_arg, shield_arg, conf_arg, gen_args)
+        return f'{board_arg}{shield_arg}{conf_arg}{gen_args}'
 
     def _cd_into(self, mkdir, **kwargs):
         app = kwargs['app']
@@ -339,13 +335,13 @@ class ZephyrAppCommandsDirective(Directive):
                 if os_comment:
                     content.append(os_comment.format('Linux/macOS'))
                 if app:
-                    content.append('cd {}'.format(app))
+                    content.append(f'cd {app}')
             elif host == "win":
                 if os_comment:
                     content.append(os_comment.format('Windows'))
                 if app:
                     backslashified = app.replace('/', '\\')
-                    content.append('cd {}'.format(backslashified))
+                    content.append(f'cd {backslashified}')
             if mkdir:
                 content.extend(self._mkdir(mkdir, build_dir, host, skip_config))
             if not compact:
@@ -373,41 +369,43 @@ class ZephyrAppCommandsDirective(Directive):
             mkdir = 'mkdir' if num_slashes == 0 else 'mkdir -p'
             content.extend(self._cd_into(mkdir, **kwargs))
             # Prepare cmake/ninja/make variables
-            source_dir = ' ' + '/'.join(['..' for i in range(num_slashes + 1)])
+            source_dir = ' ' + '/'.join(['..' for _ in range(num_slashes + 1)])
             cmake_build_dir = ''
             tool_build_dir = ''
         else:
-            source_dir = ' {}'.format(app) if app else ' .'
-            cmake_build_dir = ' -B {}'.format(build_dir)
-            tool_build_dir = ' -C {}'.format(build_dir)
+            source_dir = f' {app}' if app else ' .'
+            cmake_build_dir = f' -B {build_dir}'
+            tool_build_dir = f' -C {build_dir}'
 
         # Now generate the actual cmake and make/ninja commands
         gen_arg = ' -GNinja' if generator == 'ninja' else ''
-        build_args = ' {}'.format(build_args) if build_args else ''
+        build_args = f' {build_args}' if build_args else ''
         cmake_args = self._cmake_args(**kwargs)
 
         if not compact:
             if not cd_into and skip_config:
-                content.append("# If you already ran cmake with -B{}, you " \
-                               "can skip this step and run {} directly.".
-                               format(build_dir, generator))  # noqa: E501
-            else:
-                content.append('# Use cmake to configure a {}-based build' \
-                               'system:'.format(generator.capitalize()))  # noqa: E501
+                content.append(
+                    f"# If you already ran cmake with -B{build_dir}, you can skip this step and run {generator} directly."
+                )
 
-        content.append('cmake{}{}{}{}'.format(cmake_build_dir, gen_arg,
-                                              cmake_args, source_dir))
+            else:
+                content.append(
+                    f'# Use cmake to configure a {generator.capitalize()}-based buildsystem:'
+                )
+
+
+        content.append(f'cmake{cmake_build_dir}{gen_arg}{cmake_args}{source_dir}')
         if not compact:
             content.extend(['',
                             '# Now run ninja on the generated build system:'])
 
         if 'build' in goals:
-            content.append('{}{}{}'.format(generator, tool_build_dir,
-                                           build_args))
-        for goal in goals:
-            if goal == 'build':
-                continue
-            content.append('{}{} {}'.format(generator, tool_build_dir, goal))
+            content.append(f'{generator}{tool_build_dir}{build_args}')
+        content.extend(
+            f'{generator}{tool_build_dir} {goal}'
+            for goal in goals
+            if goal != 'build'
+        )
 
         return content
 

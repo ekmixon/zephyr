@@ -125,8 +125,10 @@ def process_module(module):
             pykwalify.core.Core(source_data=meta, schema_data=schema)\
                 .validate()
         except pykwalify.errors.SchemaError as e:
-            sys.exit('ERROR: Malformed "build" section in file: {}\n{}'
-                     .format(module_yml.as_posix(), e))
+            sys.exit(
+                f'ERROR: Malformed "build" section in file: {module_yml.as_posix()}\n{e}'
+            )
+
 
         meta['name'] = meta.get('name', module_path.name)
         meta['name-sanitized'] = re.sub('[^a-zA-Z0-9]', '_', meta['name'])
@@ -142,12 +144,11 @@ def process_module(module):
 
 
 def process_cmake(module, meta):
-    section = meta.get('build', dict())
+    section = meta.get('build', {})
     module_path = PurePath(module)
     module_yml = module_path.joinpath('zephyr/module.yml')
 
-    cmake_extern = section.get('cmake-ext', False)
-    if cmake_extern:
+    if cmake_extern := section.get('cmake-ext', False):
         return('\"{}\":\"{}\":\"{}\"\n'
                .format(meta['name'],
                        module_path.as_posix(),
@@ -155,31 +156,28 @@ def process_cmake(module, meta):
 
     cmake_setting = section.get('cmake', None)
     if not validate_setting(cmake_setting, module, 'CMakeLists.txt'):
-        sys.exit('ERROR: "cmake" key in {} has folder value "{}" which '
-                 'does not contain a CMakeLists.txt file.'
-                 .format(module_yml.as_posix(), cmake_setting))
+        sys.exit(
+            f'ERROR: "cmake" key in {module_yml.as_posix()} has folder value "{cmake_setting}" which does not contain a CMakeLists.txt file.'
+        )
+
 
     cmake_path = os.path.join(module, cmake_setting or 'zephyr')
     cmake_file = os.path.join(cmake_path, 'CMakeLists.txt')
     if os.path.isfile(cmake_file):
-        return('\"{}\":\"{}\":\"{}\"\n'
-               .format(meta['name'],
-                       module_path.as_posix(),
-                       Path(cmake_path).resolve().as_posix()))
+        return f"""\"{meta['name']}\":\"{module_path.as_posix()}\":\"{Path(cmake_path).resolve().as_posix()}\"\n"""
+
     else:
-        return('\"{}\":\"{}\":\"\"\n'
-               .format(meta['name'],
-                       module_path.as_posix()))
+        return f"""\"{meta['name']}\":\"{module_path.as_posix()}\":\"\"\n"""
 
 
 def process_settings(module, meta):
-    section = meta.get('build', dict())
+    section = meta.get('build', {})
     build_settings = section.get('settings', None)
     out_text = ""
 
     if build_settings is not None:
         for root in ['board', 'dts', 'soc', 'arch', 'module_ext']:
-            setting = build_settings.get(root+'_root', None)
+            setting = build_settings.get(f'{root}_root', None)
             if setting is not None:
                 root_path = PurePath(module) / setting
                 out_text += f'"{root.upper()}_ROOT":'
@@ -203,18 +201,18 @@ def kconfig_snippet(meta, path, kconfig_file=None):
 
 
 def process_kconfig(module, meta):
-    section = meta.get('build', dict())
+    section = meta.get('build', {})
     module_path = PurePath(module)
     module_yml = module_path.joinpath('zephyr/module.yml')
-    kconfig_extern = section.get('kconfig-ext', False)
-    if kconfig_extern:
+    if kconfig_extern := section.get('kconfig-ext', False):
         return kconfig_snippet(meta, module_path)
 
     kconfig_setting = section.get('kconfig', None)
     if not validate_setting(kconfig_setting, module):
-        sys.exit('ERROR: "kconfig" key in {} has value "{}" which does '
-                 'not point to a valid Kconfig file.'
-                 .format(module_yml, kconfig_setting))
+        sys.exit(
+            f'ERROR: "kconfig" key in {module_yml} has value "{kconfig_setting}" which does not point to a valid Kconfig file.'
+        )
+
 
     kconfig_file = os.path.join(module, kconfig_setting or 'zephyr/Kconfig')
     if os.path.isfile(kconfig_file):
@@ -287,14 +285,12 @@ def parse_modules(zephyr_base, modules=None, extra_modules=None):
         if project == zephyr_base:
             continue
 
-        meta = process_module(project)
-        if meta:
-            section = meta.get('build', dict())
-            deps = section.get('depends', [])
-            if not deps:
-                start_modules.append(Module(project, meta, []))
-            else:
+        if meta := process_module(project):
+            section = meta.get('build', {})
+            if deps := section.get('depends', []):
                 dep_modules.append(Module(project, meta, deps))
+            else:
+                start_modules.append(Module(project, meta, []))
         elif project in extra_modules:
             sys.exit(f'{project}, given in ZEPHYR_EXTRA_MODULES, '
                      'is not a valid zephyr module')

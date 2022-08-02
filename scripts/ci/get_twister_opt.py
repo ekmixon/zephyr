@@ -36,13 +36,12 @@ def find_archs(files):
         p = re.match(r"^arch\/([^/]+)\/", f)
         if not p:
             p = re.match(r"^include\/arch\/([^/]+)\/", f)
-        if p:
-            if p.group(1) != 'common':
-                if p.group(1) == 'riscv':
-                    archs.add('riscv32')
-                    archs.add('riscv64')
-                else:
-                    archs.add(p.group(1))
+        if p and p[1] != 'common':
+            if p[1] == 'riscv':
+                archs.add('riscv32')
+                archs.add('riscv64')
+            else:
+                archs.add(p[1])
 
     if archs:
         with open("modified_archs.args", "w") as fp:
@@ -57,13 +56,12 @@ def find_boards(files):
             continue
         p = re.match(r"^boards\/[^/]+\/([^/]+)\/", f)
         if p and p.groups():
-            boards.add(p.group(1))
+            boards.add(p[1])
 
     for b in boards:
-        suboards = glob.glob("boards/*/%s/*.yaml" %(b))
+        suboards = glob.glob(f"boards/*/{b}/*.yaml")
         for subboard in suboards:
-            name = os.path.splitext(os.path.basename(subboard))[0]
-            if name:
+            if name := os.path.splitext(os.path.basename(subboard))[0]:
                 all_boards.add(name)
 
     if all_boards:
@@ -116,7 +114,7 @@ def _get_match_fn(globs, regexes):
 
         # The glob regexes must anchor to the beginning of the path, since we
         # return search(). (?:) is a non-capturing group.
-        regex += "^(?:{})".format("|".join(glob_regexes))
+        regex += f'^(?:{"|".join(glob_regexes)})'
 
     if regexes:
         if regex:
@@ -146,7 +144,7 @@ class Tag:
             (self._exclude_match_fn and self._exclude_match_fn(path))
 
     def __repr__(self):
-        return "<Tag {}>".format(self.name)
+        return f"<Tag {self.name}>"
 
 def find_tags(files):
 
@@ -176,12 +174,7 @@ def find_tags(files):
             if t._contains(f):
                 t.exclude = False
 
-    exclude_tags = set()
-    for t in tags.values():
-        if t.exclude:
-            exclude_tags.add(t.name)
-
-    if exclude_tags:
+    if exclude_tags := {t.name for t in tags.values() if t.exclude}:
         with open("modified_tags.args", "w") as fp:
             fp.write("-e\n%s" %("\n-e\n".join(exclude_tags)))
 

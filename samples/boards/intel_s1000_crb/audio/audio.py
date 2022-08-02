@@ -47,9 +47,9 @@ class Device:
         command += b'\x00' * (56 - len(command))
         cmd_len = len(command) // 4 + 1
         command = b'\x01\x00' + cmd_len.to_bytes(2, byteorder='little') + \
-                command
+                    command
         command = b'\x01\x00\x00\x38' + command
-        print('Starting Audio on %s ...' % self.hid_dev.get_product_string())
+        print(f'Starting Audio on {self.hid_dev.get_product_string()} ...')
         self.hid_dev.send_feature_report(command)
         self.hid_dev.read(len(command))
 
@@ -63,9 +63,9 @@ class Device:
         command += b'\x00' * (56 - len(command))
         cmd_len = len(command) // 4 + 1
         command = b'\x02\x00' + cmd_len.to_bytes(2, byteorder='little') + \
-                command
+                    command
         command = b'\x01\x00\x00\x38' + command
-        print('Stopping Audio on %s ...' % self.hid_dev.get_product_string())
+        print(f'Stopping Audio on {self.hid_dev.get_product_string()} ...')
         self.hid_dev.send_feature_report(command)
         self.hid_dev.read(len(command))
 

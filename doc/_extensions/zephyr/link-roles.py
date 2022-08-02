@@ -42,8 +42,8 @@ def setup(app):
     if baseurl is None or baseurl == '':
         baseurl = 'https://github.com/zephyrproject-rtos/zephyr'
 
-    app.add_role('zephyr_file', autolink('{}/blob/{}/%s'.format(baseurl, rev)))
-    app.add_role('zephyr_raw', autolink('{}/raw/{}/%s'.format(baseurl, rev)))
+    app.add_role('zephyr_file', autolink(f'{baseurl}/blob/{rev}/%s'))
+    app.add_role('zephyr_raw', autolink(f'{baseurl}/raw/{rev}/%s'))
 
     # The role just creates new nodes based on information in the
     # arguments; its behavior doesn't depend on any other documents.
@@ -57,12 +57,13 @@ def autolink(pattern):
     def role(name, rawtext, text, lineno, inliner, options={}, content=[]):
         m = re.search(r'(.*)\s*<(.*)>', text)
         if m:
-            link_text = m.group(1)
-            link = m.group(2)
+            link_text = m[1]
+            link = m[2]
         else:
             link_text = text
             link = text
         url = pattern % (link,)
         node = nodes.reference(rawtext, link_text, refuri=url, **options)
         return [node], []
+
     return role

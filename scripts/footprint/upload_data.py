@@ -25,24 +25,23 @@ two_mon_rel = relativedelta(months=4)
 influx_dsn = 'influxdb://localhost:8086/footprint_tracking'
 
 def create_event(data, board, feature, commit, current_time, typ, application):
-    footprint_data = []
     client = InfluxDBClient.from_dsn(influx_dsn)
     client.create_database('footprint_tracking')
-    for d in data.keys():
-        footprint_data.append({
+    footprint_data = [
+        {
             "measurement": d,
             "tags": {
                 "board": board,
                 "commit": commit,
                 "application": application,
                 "type": typ,
-                "feature": feature
+                "feature": feature,
             },
             "time": current_time,
-            "fields": {
-                "value": data[d]
-            }
-        })
+            "fields": {"value": data[d]},
+        }
+        for d in data.keys()
+    ]
 
     client.write_points(footprint_data, time_precision='s', database='footprint_tracking')
 
@@ -70,11 +69,7 @@ def parse_file(json_file):
     ws = find(root, lambda node: node.name == 'WORKSPACE')
 
     data = {}
-    if zr and ws:
-        trees = [zr, ws]
-    else:
-        trees = [root]
-
+    trees = [zr, ws] if zr and ws else [root]
     for node in PreOrderIter(root, maxlevel=2):
         if node.name not in ['WORKSPACE', 'ZEPHYR_BASE']:
             if node.name in ['Root', 'Symbols']:
@@ -101,18 +96,16 @@ def process_files(data_dir, zephyr_base, dry_run):
     for hash in os.listdir(f'{data_dir}'):
         if not dry_run:
             client = InfluxDBClient.from_dsn(influx_dsn)
-            result = client.query(f"select * from kernel where commit = '{hash}';")
-            if result:
+            if result := client.query(
+                f"select * from kernel where commit = '{hash}';"
+            ):
                 print(f"Skipping {hash}...")
                 continue
         print(f"Importing {hash}...")
         for file in glob.glob(f"{args.data}/{hash}/**/*json", recursive=True):
             file_data = file.split("/")
             json_file = os.path.basename(file)
-            if 'ram' in json_file:
-                typ = 'ram'
-            else:
-                typ = 'rom'
+            typ = 'ram' if 'ram' in json_file else 'rom'
             commit = file_data[1]
             app = file_data[2]
             feature = file_data[3]
@@ -141,10 +134,7 @@ def main():
 
     if args.file:
         data = parse_file(args.file)
-        items = []
-        for component,value in data.items():
-            items.append([component,value])
-
+        items = [[component,value] for component, value in data.items()]
         table = tabulate(items, headers=['Component', 'Size'], tablefmt='orgtbl')
         print(table)
 

@@ -25,9 +25,7 @@ def parse_args():
     parser.add_argument('-f', '--file', help="Specify the trace file created by"
                         " dump_trace tool")
 
-    args = parser.parse_args()
-
-    return args
+    return parser.parse_args()
 
 def main():
     """Main"""
@@ -40,11 +38,7 @@ def main():
     if args.file is not None:
         etrace = args.file
     else:
-        if args.etrace == 'sof':
-            etrace = SOF_ETRACE
-        else:
-            etrace = QEMU_ETRACE
-
+        etrace = SOF_ETRACE if args.etrace == 'sof' else QEMU_ETRACE
     l = Loglist(etrace)
     l.print()
 

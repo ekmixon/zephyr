@@ -33,15 +33,13 @@ def main():
     init_kconfig()
 
     args = parse_args()
-    if args.checks:
-        checks = args.checks
-    else:
-        # Run all checks if no checks were specified
-        checks = (check_always_n,
-                  check_unused,
-                  check_pointless_menuconfigs,
-                  check_defconfig_only_definition,
-                  check_missing_config_prefix)
+    checks = args.checks or (
+        check_always_n,
+        check_unused,
+        check_pointless_menuconfigs,
+        check_defconfig_only_definition,
+        check_missing_config_prefix,
+    )
 
     first = True
     for check in checks:
@@ -302,7 +300,7 @@ def run(cmd, cwd=TOP_DIR, check=True):
         process = subprocess.Popen(
             cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE, cwd=cwd)
     except OSError as e:
-        err("Failed to run '{}': {}".format(cmd_s, e))
+        err(f"Failed to run '{cmd_s}': {e}")
 
     stdout, stderr = process.communicate()
     # errors="ignore" temporarily works around
@@ -319,22 +317,22 @@ def run(cmd, cwd=TOP_DIR, check=True):
 {}""".format(cmd_s, process.returncode, stdout, stderr))
 
     if stderr:
-        warn("'{}' wrote to stderr:\n{}".format(cmd_s, stderr))
+        warn(f"'{cmd_s}' wrote to stderr:\n{stderr}")
 
     return stdout
 
 
 def err(msg):
-    sys.exit(executable() + "error: " + msg)
+    sys.exit(f"{executable()}error: {msg}")
 
 
 def warn(msg):
-    print(executable() + "warning: " + msg, file=sys.stderr)
+    print(f"{executable()}warning: {msg}", file=sys.stderr)
 
 
 def executable():
     cmd = sys.argv[0]  # Empty string if missing
-    return cmd + ": " if cmd else ""
+    return f"{cmd}: " if cmd else ""
 
 
 if __name__ == "__main__":

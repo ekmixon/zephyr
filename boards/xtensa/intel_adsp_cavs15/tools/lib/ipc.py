@@ -47,9 +47,7 @@ class IpcHdr(Structure):
     ]
 
     def __str__(self):
-        output = ("Size:   0x%08X" % self.size)
-
-        return output
+        return ("Size:   0x%08X" % self.size)
 
 
 class IpcCmdHdr(Structure):
@@ -61,15 +59,11 @@ class IpcCmdHdr(Structure):
     ]
 
     def __str__(self):
-        output = (
+        return (
             "IPC Command Hdr:\n"
             "   Command:    {cmd:>10} (0x{cmd:0>8X})\n"
             "   Size:       {size:>10} (0x{size:0>4X})"
-            ).format(
-                size = self.size,
-                cmd = self.cmd
-            )
-        return output
+        ).format(size=self.size, cmd=self.cmd)
 
 
 class IpcFwVersion(Structure):
@@ -89,7 +83,7 @@ class IpcFwVersion(Structure):
     ]
 
     def __str__(self):
-        output = (
+        return (
             "Firmware Version:\n"
             "   Major version:  {major: >5} (0x{major:0>4X})\n"
             "   Minor version:  {minor: >5} (0x{minor:0>4X})\n"
@@ -99,16 +93,16 @@ class IpcFwVersion(Structure):
             "   Time:  {time: >24}\n"
             "   Tag:  {tag: >24}\n"
             "   Abi version: {abi_version: >5} (0x{abi_version:0>4X})"
-            ).format(
-                major = self.major,
-                minor = self.minor,
-                micro = self.micro,
-                build = self.build,
-                date=''.join([chr(i) for i in list(self.date)]),
-                time=''.join([chr(i) for i in list(self.time)]),
-                tag=''.join([chr(i) for i in list(self.tag)]),
-                abi_version = self.abi_version)
-        return output
+        ).format(
+            major=self.major,
+            minor=self.minor,
+            micro=self.micro,
+            build=self.build,
+            date=''.join([chr(i) for i in list(self.date)]),
+            time=''.join([chr(i) for i in list(self.time)]),
+            tag=''.join([chr(i) for i in list(self.tag)]),
+            abi_version=self.abi_version,
+        )
 
 
 class IpcFwReady(Structure):
@@ -126,7 +120,7 @@ class IpcFwReady(Structure):
     ]
 
     def __str__(self):
-        output = (
+        return (
             "IPC Firmware Ready Message: (0x{cmd:0>8X}) (0x{size:0>8X})\n"
             "   DSP box offset: {dsp_offset: >5} (0x{dsp_offset:0>4X})\n"
             "   Host box offset:{host_offset: >5} (0x{host_offset:0>4X})\n"
@@ -135,17 +129,16 @@ class IpcFwReady(Structure):
             "{version}\n\n"
             "Flags:"
             "   0x{flags:0>8X}"
-            ).format(
-                cmd = self.hdr.cmd,
-                size = self.hdr.size,
-                dsp_offset = self.dspbox_offset,
-                host_offset = self.hostbox_offset,
-                dsp_size = self.dspbox_size,
-                host_size = self.hostbox_size,
-                version = str(self.version),
-                flags = self.flags
-            )
-        return output
+        ).format(
+            cmd=self.hdr.cmd,
+            size=self.hdr.size,
+            dsp_offset=self.dspbox_offset,
+            host_offset=self.hostbox_offset,
+            dsp_size=self.dspbox_size,
+            host_size=self.hostbox_size,
+            version=str(self.version),
+            flags=self.flags,
+        )
 
 
 class IpcExtDataHdr(Structure):
@@ -170,21 +163,20 @@ class IpcWindowElem(Structure):
     ]
 
     def __str__(self):
-        output = (
+        return (
             "Window type: {type_str:>20} ({type:d})\n"
             "Window id:         {id: >5}\n"
             "Window flags:      {flags: >5} (0x{flags:0>4X})\n"
             "Window size:       {size: >5} (0x{size:0>4X})\n"
             "Window offset:     {offset: >5} (0x{offset:0>4X})\n"
-            ).format(
-                type_str = IpcRegion[self.type],
-                type = self.type,
-                id = self.id,
-                flags = self.flags,
-                size = self.size,
-                offset = self.offset
-            )
-        return output
+        ).format(
+            type_str=IpcRegion[self.type],
+            type=self.type,
+            id=self.id,
+            flags=self.flags,
+            size=self.size,
+            offset=self.offset,
+        )
 
 
 class IpcWindow(Structure):
@@ -197,18 +189,18 @@ class IpcWindow(Structure):
     ]
 
     def __str__(self):
-        output = ("\n"
+        return (
+            "\n"
             "IPC Firmware Ready Extended Message: (0x{cmd:0>8X}) (0x{size:0>8X})\n"
             "Message Type:      {ext_type: >5d} ({ext_type_str})\n\n"
             "Number of Windows:    {num_windows: >2d}\n"
         ).format(
-            cmd = self.ext_hdr.hdr.cmd,
-            size = self.ext_hdr.hdr.size,
-            ext_type = self.ext_hdr.type,
-            ext_type_str = IpcExtData[self.ext_hdr.type],
-            num_windows = int(self.num_windows)
+            cmd=self.ext_hdr.hdr.cmd,
+            size=self.ext_hdr.hdr.size,
+            ext_type=self.ext_hdr.type,
+            ext_type_str=IpcExtData[self.ext_hdr.type],
+            num_windows=int(self.num_windows),
         )
-        return output
 
 
 class Ipc:

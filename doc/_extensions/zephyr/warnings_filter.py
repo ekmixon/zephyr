@@ -55,10 +55,9 @@ class WarningsFilter(logging.Filter):
             if re.match(expression, record.msg):
                 if self._silent:
                     return False
-                else:
-                    record.levelno = logging.INFO
-                    record.msg = f"Filtered warning: {record.msg}"
-                    return True
+                record.levelno = logging.INFO
+                record.msg = f"Filtered warning: {record.msg}"
+                return True
 
         return True
 
@@ -72,11 +71,7 @@ def configure(app: Sphinx) -> None:
 
     # load expressions from configuration file
     with open(app.config.warnings_filter_config) as f:
-        expressions = list()
-        for line in f.readlines():
-            if not line.startswith("#"):
-                expressions.append(line.rstrip())
-
+        expressions = [line.rstrip() for line in f if not line.startswith("#")]
     # install warnings filter to all the Sphinx logger handlers
     filter = WarningsFilter(expressions, app.config.warnings_filter_silent)
     logger = logging.getLogger(NAMESPACE)

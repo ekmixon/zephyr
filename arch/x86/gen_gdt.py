@@ -54,12 +54,12 @@ if LooseVersion(elftools.__version__) < LooseVersion('0.24'):
 def debug(text):
     """Display debug message if --verbose"""
     if args.verbose:
-        sys.stdout.write(os.path.basename(sys.argv[0]) + ": " + text + "\n")
+        sys.stdout.write(f"{os.path.basename(sys.argv[0])}: {text}" + "\n")
 
 
 def error(text):
     """Exit program with an error message"""
-    sys.exit(os.path.basename(sys.argv[0]) + ": " + text)
+    sys.exit(f"{os.path.basename(sys.argv[0])}: {text}")
 
 
 GDT_PD_FMT = "<HIH"

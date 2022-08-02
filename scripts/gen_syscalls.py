@@ -162,11 +162,10 @@ def wrapper_defs(func_name, func_type, args):
     for argtype, argname in args:
         if need_split(argtype):
             split_args.append((argtype, argname))
-            mrsh_args.append("parm%d.split.lo" % nsplit)
-            mrsh_args.append("parm%d.split.hi" % nsplit)
+            mrsh_args.extend(("parm%d.split.lo" % nsplit, "parm%d.split.hi" % nsplit))
             nsplit += 1
         else:
-            mrsh_args.append("*(uintptr_t *)&" + argname)
+            mrsh_args.append(f"*(uintptr_t *)&{argname}")
 
     if ret64:
         mrsh_args.append("(uintptr_t)&ret64")
@@ -191,7 +190,7 @@ def wrapper_defs(func_name, func_type, args):
         wrap += "\t\t" + "};\n"
         mrsh_args[5:] = ["(uintptr_t) &more"]
 
-    syscall_id = "K_SYSCALL_" + func_name.upper()
+    syscall_id = f"K_SYSCALL_{func_name.upper()}"
     invoke = ("arch_syscall_invoke%d(%s)"
               % (len(mrsh_args),
                  ", ".join(mrsh_args + [syscall_id])))
@@ -219,7 +218,7 @@ def wrapper_defs(func_name, func_type, args):
     # the impl call from being hoisted above the check for user
     # context.
     impl_arglist = ", ".join([argrec[1] for argrec in args])
-    impl_call = "z_impl_%s(%s)" % (func_name, impl_arglist)
+    impl_call = f"z_impl_{func_name}({impl_arglist})"
     wrap += "\t" + "compiler_barrier();\n"
     wrap += "\t" + "%s%s;\n" % ("return " if func_type != "void" else "",
                                impl_call)
@@ -237,7 +236,7 @@ def mrsh_rval(mrsh_num, total):
         return "(((uintptr_t *)more)[%d])" % (mrsh_num - 5)
 
 def marshall_defs(func_name, func_type, args):
-    mrsh_name = "z_mrsh_" + func_name
+    mrsh_name = f"z_mrsh_{func_name}"
 
     nmrsh = 0        # number of marshalled uintptr_t parameter
     vrfy_parms = []  # list of (arg_num, mrsh_or_parm_num, bool_is_split)
@@ -287,7 +286,7 @@ def marshall_defs(func_name, func_type, args):
         if is_split:
             out_args.append("parm%d.val" % argn)
         else:
-            out_args.append("*(%s*)&%s" % (args[i][0], mrsh_rval(argn, nmrsh)))
+            out_args.append(f"*({args[i][0]}*)&{mrsh_rval(argn, nmrsh)}")
 
     vrfy_call = "z_vrfy_%s(%s)\n" % (func_name, ", ".join(out_args))
 
@@ -299,7 +298,7 @@ def marshall_defs(func_name, func_type, args):
         mrsh += "\t" + "%s ret = %s;\n" % (func_type, vrfy_call)
 
         if need_split(func_type):
-            ptr = "((uint64_t *)%s)" % mrsh_rval(nmrsh - 1, nmrsh)
+            ptr = f"((uint64_t *){mrsh_rval(nmrsh - 1, nmrsh)})"
             mrsh += "\t" + "Z_OOPS(Z_SYSCALL_MEMORY_WRITE(%s, 8));\n" % ptr
             mrsh += "\t" + "*%s = ret;\n" % ptr
             mrsh += "\t" + "_current->syscall_frame = NULL;\n"
@@ -326,14 +325,14 @@ def analyze_fn(match_group):
         sys.stderr.write("In declaration of %s\n" % func)
         raise
 
-    sys_id = "K_SYSCALL_" + func_name.upper()
+    sys_id = f"K_SYSCALL_{func_name.upper()}"
 
     marshaller = None
     marshaller, handler = marshall_defs(func_name, func_type, args)
     invocation = wrapper_defs(func_name, func_type, args)
 
     # Entry in _k_syscall_table
-    table_entry = "[%s] = %s" % (sys_id, handler)
+    table_entry = f"[{sys_id}] = {handler}"
 
     return (handler, invocation, marshaller, sys_id, table_entry)
 
@@ -389,18 +388,24 @@ def main():
         if mrsh:
             syscall = typename_split(match_group[0])[1]
             mrsh_defs[syscall] = mrsh
-            mrsh_includes[syscall] = "#include <syscalls/%s>" % fn
+            mrsh_includes[syscall] = f"#include <syscalls/{fn}>"
 
     with open(args.syscall_dispatch, "w") as fp:
         table_entries.append("[K_SYSCALL_BAD] = handler_bad_syscall")
 
-        weak_defines = "".join([weak_template % name
-                                for name in handlers
-                                if not name in noweak])
+        weak_defines = "".join(
+            [weak_template % name for name in handlers if name not in noweak]
+        )
+
 
         # The "noweak" ones just get a regular declaration
-        weak_defines += "\n".join(["extern uintptr_t %s(uintptr_t arg1, uintptr_t arg2, uintptr_t arg3, uintptr_t arg4, uintptr_t arg5, uintptr_t arg6, void *ssf);"
-                                   % s for s in noweak])
+        weak_defines += "\n".join(
+            [
+                f"extern uintptr_t {s}(uintptr_t arg1, uintptr_t arg2, uintptr_t arg3, uintptr_t arg4, uintptr_t arg5, uintptr_t arg6, void *ssf);"
+                for s in noweak
+            ]
+        )
+
 
         fp.write(table_template % (weak_defines,
                                    ",\n\t".join(table_entries)))
@@ -409,10 +414,7 @@ def main():
     ids.sort()
     ids.extend(["K_SYSCALL_BAD", "K_SYSCALL_LIMIT"])
 
-    ids_as_defines = ""
-    for i, item in enumerate(ids):
-        ids_as_defines += "#define {} {}\n".format(item, i)
-
+    ids_as_defines = "".join(f"#define {item} {i}\n" for i, item in enumerate(ids))
     with open(args.syscall_list, "w") as fp:
         fp.write(list_template % ids_as_defines)
 
@@ -420,7 +422,7 @@ def main():
     for fn, invo_list in invocations.items():
         out_fn = os.path.join(args.base_output, fn)
 
-        ig = re.sub("[^a-zA-Z0-9]", "_", "Z_INCLUDE_SYSCALLS_" + fn).upper()
+        ig = re.sub("[^a-zA-Z0-9]", "_", f"Z_INCLUDE_SYSCALLS_{fn}").upper()
         include_guard = "#ifndef %s\n#define %s\n" % (ig, ig)
         header = syscall_template % (include_guard, "\n\n".join(invo_list))
 
@@ -428,8 +430,8 @@ def main():
             fp.write(header)
 
     # Likewise emit _mrsh.c files for syscall inclusion
-    for fn in mrsh_defs:
-        mrsh_fn = os.path.join(args.base_output, fn + "_mrsh.c")
+    for fn, value in mrsh_defs.items():
+        mrsh_fn = os.path.join(args.base_output, f"{fn}_mrsh.c")
 
         with open(mrsh_fn, "w") as fp:
             fp.write("/* auto-generated by gen_syscalls.py, don't edit */\n")
@@ -441,7 +443,7 @@ def main():
             fp.write("#endif\n")
             fp.write(mrsh_includes[fn] + "\n")
             fp.write("\n")
-            fp.write(mrsh_defs[fn] + "\n")
+            fp.write(value + "\n")
             fp.write("#if __GNUC__ > 4 || (__GNUC__ == 4 && __GNUC_MINOR__ >= 6)\n")
             fp.write("#pragma GCC diagnostic pop\n")
             fp.write("#endif\n")

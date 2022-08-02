@@ -116,8 +116,9 @@ def map_regs():
     for id in ["119a", "5a98", "1a98", "3198", "9dc8",
                "a348", "34C8", "38c8", "4dc8", "02c8",
                "06c8", "a3f0", "a0c8", "4b55", "4b58"]:
-        p = runx(f"grep -il PCI_ID=8086:{id} /sys/bus/pci/devices/*/uevent")
-        if p:
+        if p := runx(
+            f"grep -il PCI_ID=8086:{id} /sys/bus/pci/devices/*/uevent"
+        ):
             pcidir = os.path.dirname(p)
             break
 
@@ -158,7 +159,7 @@ def map_regs():
 
 def setup_dma_mem(fw_bytes):
     (mem, phys_addr) = map_phys_mem()
-    mem[0:len(fw_bytes)] = fw_bytes
+    mem[:len(fw_bytes)] = fw_bytes
 
     # HDA requires at least two buffers be defined, but we don't care
     # about boundaries because it's all a contiguous region. Place a
@@ -197,19 +198,17 @@ def map_phys_mem():
     # interface.
     vaddr = ctypes.addressof(ctypes.c_int.from_buffer(mem))
     vpagenum = vaddr >> 12
-    pagemap = open("/proc/self/pagemap", "rb")
-    pagemap.seek(vpagenum * 8)
-    pent = pagemap.read(8)
+    with open("/proc/self/pagemap", "rb") as pagemap:
+        pagemap.seek(vpagenum * 8)
+        pent = pagemap.read(8)
 
-    # The PFN in a pagemap entry is the bottom 54 (?!) bits
-    paddr = (struct.unpack("Q", pent)[0] & ((1 << 54) - 1)) * PAGESZ
-    pagemap.close()
-
+        # The PFN in a pagemap entry is the bottom 54 (?!) bits
+        paddr = (struct.unpack("Q", pent)[0] & ((1 << 54) - 1)) * PAGESZ
     return (mem, paddr)
 
 # Maps a PCI BAR and returns the in-process address
 def bar_map(pcidir, barnum):
-    f = open(pcidir.decode() + "/resource" + str(barnum), "r+")
+    f = open(f"{pcidir.decode()}/resource{str(barnum)}", "r+")
     mm = mmap.mmap(f.fileno(), os.fstat(f.fileno()).st_size)
     global_mmaps.append(mm)
     return ctypes.addressof(ctypes.c_int.from_buffer(mm))

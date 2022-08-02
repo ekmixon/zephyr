@@ -100,9 +100,9 @@ def find_obj_file_partitions(filename, partitions):
     with open(filename, 'rb') as f:
         full_lib = ELFFile(f)
         if not full_lib:
-            sys.exit("Error parsing file: " + filename)
+            sys.exit(f"Error parsing file: {filename}")
 
-        sections = [x for x in full_lib.iter_sections()]
+        sections = list(full_lib.iter_sections())
         for section in sections:
             m = section_regex.match(section.name)
             if not m:

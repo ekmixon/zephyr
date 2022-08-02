@@ -47,7 +47,7 @@ def mailbox_poll_char(dev):
             # Get readable character
             character &= 0x10FFFF
 
-            print('{}'.format(chr(character)), end='')
+            print(f'{chr(character)}', end='')
 
             # Clear interrupt
             dev.dsp_hipct.value |= regs.ADSP_IPC_HIPCT_BUSY

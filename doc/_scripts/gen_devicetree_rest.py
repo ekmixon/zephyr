@@ -73,7 +73,7 @@ class VndLookup:
         vnd2vendor = {
             None: GENERIC_OR_VENDOR_INDEPENDENT,
         }
-        vnd2vendor.update(edtlib.load_vendor_prefixes_txt(vendor_prefixes))
+        vnd2vendor |= edtlib.load_vendor_prefixes_txt(vendor_prefixes)
 
         logger.info('found %d vendor prefixes in %s', len(vnd2vendor) - 1,
                     vendor_prefixes)
@@ -244,19 +244,11 @@ def dump_content(bindings, base_binding, vnd_lookup, out_dir):
     write_orphans(bindings, base_binding, vnd_lookup, out_dir)
 
 def setup_bindings_dir(bindings, out_dir):
-    # Make a set of all the Path objects we will be creating for
-    # out_dir / bindings / {binding_path}.rst. Delete all the ones that
-    # shouldn't be there. Make sure the bindings output directory
-    # exists.
-
-    paths = set()
     bindings_dir = out_dir / 'bindings'
     logger.info('making output subdirectory %s', bindings_dir)
     bindings_dir.mkdir(parents=True, exist_ok=True)
 
-    for binding in bindings:
-        paths.add(bindings_dir / binding_filename(binding))
-
+    paths = {bindings_dir / binding_filename(binding) for binding in bindings}
     for dirpath, _, filenames in os.walk(bindings_dir):
         for filename in filenames:
             path = Path(dirpath) / filename
@@ -414,10 +406,7 @@ def print_binding_page(binding, base_names, vnd_lookup, dup_compats,
     #
     # Title [(on <bus> bus)]
     # ######################
-    if binding.on_bus:
-        on_bus_title = f' (on {binding.on_bus} bus)'
-    else:
-        on_bus_title = ''
+    on_bus_title = f' (on {binding.on_bus} bus)' if binding.on_bus else ''
     compatible = binding.compatible
 
     title = f'{compatible}{on_bus_title}'
@@ -458,10 +447,7 @@ def print_binding_page(binding, base_names, vnd_lookup, dup_compats,
           file=string_io)
 
     # Binding description.
-    if binding.bus:
-        bus_help = f'These nodes are "{binding.bus}" bus nodes.'
-    else:
-        bus_help = ''
+    bus_help = f'These nodes are "{binding.bus}" bus nodes.' if binding.bus else ''
     print_block(f'''\
     Description
     ***********
@@ -506,7 +492,7 @@ def print_top_level_properties(binding, base_names, string_io):
             print_property_table(specs, temp_io, deprecated=deprecated)
             return textwrap.indent(temp_io.getvalue(), indent)
 
-        return indent + '(None)'
+        return f'{indent}(None)'
 
     def node_props_filter(prop_spec):
         return prop_spec.name not in base_names and not prop_spec.deprecated
@@ -653,8 +639,11 @@ def setup_compatibles_dir(compatibles, compatibles_dir):
     logger.info('making output subdirectory %s', compatibles_dir)
     compatibles_dir.mkdir(parents=True, exist_ok=True)
 
-    paths = set(compatibles_dir / compatible_filename(compatible)
-                for compatible in compatibles)
+    paths = {
+        compatibles_dir / compatible_filename(compatible)
+        for compatible in compatibles
+    }
+
 
     for path in compatibles_dir.iterdir():
         if path not in paths:
@@ -698,8 +687,9 @@ def to_code_block(s, indent=0):
     # 'indent' argument is a leading indent for each line in the code
     # block, in spaces.
     indent = indent * ' '
-    return ('.. code-block:: none\n\n' +
-            textwrap.indent(s, indent + '   ') + '\n')
+    return (
+        '.. code-block:: none\n\n' + textwrap.indent(s, f'{indent}   ')
+    ) + '\n'
 
 def compatible_vnd(compatible):
     # Get the vendor prefix for a compatible string 'compatible'.
@@ -708,10 +698,7 @@ def compatible_vnd(compatible):
     #
     # If 'compatible' has no comma (','), None is returned.
 
-    if ',' not in compatible:
-        return None
-
-    return compatible.split(',', 1)[0]
+    return None if ',' not in compatible else compatible.split(',', 1)[0]
 
 def compatible_filename(compatible):
     # Name of the per-compatible disambiguation page within the
@@ -739,10 +726,7 @@ def zref(target, text=None):
     if docset.strip():
         target = f'{docset}:{target}'
 
-    if text:
-        return f':ref:`{text} <{target}>`'
-
-    return f':ref:`{target}`'
+    return f':ref:`{text} <{target}>`' if text else f':ref:`{target}`'
 
 def binding_filename(binding):
     # Returns the output file name for a binding relative to the
@@ -765,7 +749,7 @@ def binding_filename(binding):
 
     # Cut past dts/bindings, strip off the .yaml, and replace with
     # .rst.
-    return as_posix[idx + len(dts_bindings):-4] + 'rst'
+    return f'{as_posix[idx + len(dts_bindings):-4]}rst'
 
 def binding_ref_target(binding):
     # Return the sphinx ':ref:' target name for a binding.

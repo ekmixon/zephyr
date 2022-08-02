@@ -50,11 +50,11 @@ ERR_CODE_VECTORS = [8, 10, 11, 12, 13, 14, 17]
 def debug(text):
     if not args.verbose:
         return
-    sys.stdout.write(os.path.basename(sys.argv[0]) + ": " + text + "\n")
+    sys.stdout.write(f"{os.path.basename(sys.argv[0])}: {text}" + "\n")
 
 
 def error(text):
-    sys.exit(os.path.basename(sys.argv[0]) + ": " + text)
+    sys.exit(f"{os.path.basename(sys.argv[0])}: {text}")
 
 
 # See Section 6.11 of the Intel Architecture Software Developer's Manual
@@ -69,9 +69,9 @@ def create_irq_gate(handler, dpl):
     offset_hi = handler >> 16
     offset_lo = handler & 0xFFFF
 
-    data = struct.pack(gate_desc_format, offset_lo, KERNEL_CODE_SEG, 0,
-                       type_attr, offset_hi)
-    return data
+    return struct.pack(
+        gate_desc_format, offset_lo, KERNEL_CODE_SEG, 0, type_attr, offset_hi
+    )
 
 
 def create_task_gate(tss, dpl):
@@ -79,8 +79,7 @@ def create_task_gate(tss, dpl):
     gate_type = 0x5  # 32-bit task gate
     type_attr = gate_type | (dpl << 5) | (present << 7)
 
-    data = struct.pack(gate_desc_format, 0, tss, 0, type_attr, 0)
-    return data
+    return struct.pack(gate_desc_format, 0, tss, 0, type_attr, 0)
 
 
 def create_idt_binary(idt_config, filename):
@@ -92,11 +91,7 @@ def create_idt_binary(idt_config, filename):
             if not handler and not tss:
                 error("entry does not specify either handler or tss")
 
-            if handler:
-                data = create_irq_gate(handler, dpl)
-            else:
-                data = create_task_gate(tss, dpl)
-
+            data = create_irq_gate(handler, dpl) if handler else create_task_gate(tss, dpl)
             fp.write(data)
 
 
@@ -134,8 +129,8 @@ def update_irq_vec_map(irq_vec_map, irq, vector, max_irq):
 
 
 def setup_idt(spur_code, spur_nocode, intlist, max_vec, max_irq):
-    irq_vec_map = [0 for i in range(max_irq)]
-    vectors = [None for i in range(max_vec)]
+    irq_vec_map = [0 for _ in range(max_irq)]
+    vectors = [None for _ in range(max_vec)]
 
     # Pass 1: sanity check and set up hard-coded interrupt vectors
     for handler, irq, prio, vec, dpl, tss in intlist:
@@ -177,11 +172,7 @@ def setup_idt(spur_code, spur_nocode, intlist, max_vec, max_irq):
         if vectors[i] is not None:
             continue
 
-        if i in ERR_CODE_VECTORS:
-            handler = spur_code
-        else:
-            handler = spur_nocode
-
+        handler = spur_code if i in ERR_CODE_VECTORS else spur_nocode
         vectors[i] = (handler, 0, 0)
 
     return vectors, irq_vec_map
@@ -226,11 +217,10 @@ def get_intlist(elf):
     spurious_code = header[0]
     spurious_nocode = header[1]
 
-    debug("spurious handler (code)    : %s" % hex(header[0]))
-    debug("spurious handler (no code) : %s" % hex(header[1]))
+    debug(f"spurious handler (code)    : {hex(spurious_code)}")
+    debug(f"spurious handler (no code) : {hex(header[1])}")
 
-    intlist = [i for i in
-               struct.iter_unpack(intlist_entry_fmt, intdata)]
+    intlist = list(struct.iter_unpack(intlist_entry_fmt, intdata))
 
     debug("Configured interrupt routing")
     debug("handler    irq pri vec dpl")

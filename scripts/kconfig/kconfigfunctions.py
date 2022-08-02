@@ -30,7 +30,7 @@ if not doc_mode:
 
 
 def _warn(kconf, msg):
-    print("{}:{}: WARNING: {}".format(kconf.filename, kconf.linenr, msg))
+    print(f"{kconf.filename}:{kconf.linenr}: WARNING: {msg}")
 
 
 def _dt_units_to_scale(unit):
@@ -54,14 +54,10 @@ def dt_chosen_label(kconf, _, chosen):
     if doc_mode or edt is None:
         return ""
 
-    node = edt.chosen_node(chosen)
-    if not node:
+    if node := edt.chosen_node(chosen):
+        return "" if "label" not in node.props else node.props["label"].val
+    else:
         return ""
-
-    if "label" not in node.props:
-        return ""
-
-    return node.props["label"].val
 
 
 def dt_chosen_enabled(kconf, _, chosen):
@@ -175,10 +171,7 @@ def _node_int_prop(node, prop):
     if prop not in node.props:
         return 0
 
-    if node.props[prop].type != "int":
-        return 0
-
-    return node.props[prop].val
+    return 0 if node.props[prop].type != "int" else node.props[prop].val
 
 
 def _dt_chosen_reg_addr(kconf, chosen, index=0, unit=None):
@@ -320,10 +313,7 @@ def dt_node_has_bool_prop(kconf, _, path, prop):
     if node.props[prop].type != "boolean":
         return "n"
 
-    if node.props[prop].val:
-        return "y"
-
-    return "n"
+    return "y" if node.props[prop].val else "n"
 
 def dt_node_has_prop(kconf, _, label, prop):
     """
@@ -344,10 +334,7 @@ def dt_node_has_prop(kconf, _, label, prop):
     if node is None:
         return "n"
 
-    if prop in node.props:
-        return "y"
-
-    return "n"
+    return "y" if prop in node.props else "n"
 
 def dt_node_int_prop(kconf, name, path, prop):
     """

@@ -27,13 +27,12 @@ coccinelle_scripts = ["/scripts/coccinelle/reserved_names.cocci",
 def parse_coccinelle(contents: str, violations: dict):
     reg = re.compile("([a-zA-Z0-9_/]*\\.[ch]:[0-9]*)(:[0-9\\-]*: )(.*)")
     for line in contents.split("\n"):
-        r = reg.match(line)
-        if r:
-            f = r.group(1)
+        if r := reg.match(line):
+            f = r[1]
             if f in violations:
-                violations[f].append(r.group(3))
+                violations[f].append(r[3])
             else:
-                violations[r.group(1)] = [r.group(3)]
+                violations[r[1]] = [r[3]]
 
 
 def parse_args():
@@ -60,7 +59,11 @@ def main():
     numViolations = 0
 
     for f in patch_set:
-        if not f.path.endswith(".c") and not f.path.endswith(".h") or not os.path.exists(zephyr_base + "/" + f.path):
+        if (
+            not f.path.endswith(".c")
+            and not f.path.endswith(".h")
+            or not os.path.exists(f"{zephyr_base}/{f.path}")
+        ):
             continue
 
         for script in coccinelle_scripts:
@@ -81,7 +84,7 @@ def main():
         for hunk in f:
             for line in hunk:
                 if line.is_added:
-                    violation = "{}:{}".format(f.path, line.target_line_no)
+                    violation = f"{f.path}:{line.target_line_no}"
                     if violation in violations:
                         numViolations += 1
                         if args.output:

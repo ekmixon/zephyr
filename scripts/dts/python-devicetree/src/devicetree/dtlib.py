@@ -157,10 +157,7 @@ class Node:
         Returns a DTS representation of the node. Called automatically if the
         node is print()ed.
         """
-        s = "".join(label + ": " for label in self.labels)
-
-        s += "{} {{\n".format(self.name)
-
+        s = "".join(f"{label}: " for label in self.labels) + f"{self.name} {{\n"
         for prop in self.props.values():
             s += "\t" + str(prop) + "\n"
 
@@ -176,8 +173,7 @@ class Node:
         Returns some information about the Node instance. Called automatically
         if the Node instance is evaluated.
         """
-        return "<Node {} in '{}'>" \
-               .format(self.path, self.dt.filename)
+        return f"<Node {self.path} in '{self.dt.filename}'>"
 
 # See Property.type
 class Type(enum.IntEnum):
@@ -486,9 +482,10 @@ class Property:
         try:
             ret = self.node.dt.get_node(path)
         except DTError:
-            _err("property '{}' on {} in {} points to the non-existent node "
-                 "\"{}\"".format(self.name, self.node.path,
-                                 self.node.dt.filename, path))
+            _err(
+                f"""property '{self.name}' on {self.node.path} in {self.node.dt.filename} points to the non-existent node \"{path}\""""
+            )
+
 
         return ret  # The separate 'return' appeases the type checker.
 
@@ -522,7 +519,7 @@ class Property:
             return Type.PATH
 
         if types == [_MarkerType.UINT32, _MarkerType.PHANDLE] and \
-                len(self.value) == 4:
+                    len(self.value) == 4:
             return Type.PHANDLE
 
         if set(types) == {_MarkerType.UINT32, _MarkerType.PHANDLE}:
@@ -535,18 +532,14 @@ class Property:
         return Type.COMPOUND
 
     def __str__(self):
-        s = "".join(label + ": " for label in self.labels) + self.name
+        s = "".join(f"{label}: " for label in self.labels) + self.name
         if not self.value:
-            return s + ";"
+            return f"{s};"
 
         s += " ="
 
         for i, (pos, marker_type, ref) in enumerate(self._markers):
-            if i < len(self._markers) - 1:
-                next_marker = self._markers[i + 1]
-            else:
-                next_marker = None
-
+            next_marker = self._markers[i + 1] if i < len(self._markers) - 1 else None
             # End of current marker
             end = next_marker[0] if next_marker else len(self.value)
 
@@ -557,19 +550,19 @@ class Property:
                 if end != len(self.value):
                     s += ","
             elif marker_type is _MarkerType.PATH:
-                s += " &" + ref
+                s += f" &{ref}"
                 if end != len(self.value):
                     s += ","
             else:
                 # <> or []
 
                 if marker_type is _MarkerType.LABEL:
-                    s += " {}:".format(ref)
+                    s += f" {ref}:"
                 elif marker_type is _MarkerType.PHANDLE:
-                    s += " &" + ref
+                    s += f" &{ref}"
                     pos += 4
-                    # Subtle: There might be more data between the phandle and
-                    # the next marker, so we can't 'continue' here
+                                # Subtle: There might be more data between the phandle and
+                                # the next marker, so we can't 'continue' here
                 else:  # marker_type is _MarkerType.UINT*
                     elm_size = _TYPE_TO_N_BYTES[marker_type]
                     s += _N_BYTES_TO_START_STR[elm_size]
@@ -577,27 +570,22 @@ class Property:
                 while pos != end:
                     num = int.from_bytes(self.value[pos:pos + elm_size],
                                          "big")
-                    if elm_size == 1:
-                        s += " {:02X}".format(num)
-                    else:
-                        s += " " + hex(num)
-
+                    s += " {:02X}".format(num) if elm_size == 1 else f" {hex(num)}"
                     pos += elm_size
 
                 if pos != 0 and \
-                   (not next_marker or
+                       (not next_marker or
                     next_marker[1] not in (_MarkerType.PHANDLE, _MarkerType.LABEL)):
 
                     s += _N_BYTES_TO_END_STR[elm_size]
                     if pos != len(self.value):
                         s += ","
 
-        return s + ";"
+        return f"{s};"
 
 
     def __repr__(self):
-        return "<Property '{}' at '{}' in '{}'>" \
-               .format(self.name, self.node.path, self.node.dt.filename)
+        return f"<Property '{self.name}' at '{self.node.path}' in '{self.node.dt.filename}'>"
 
     #
     # Internal functions
@@ -796,8 +784,10 @@ class DT:
         # Path does not start with '/'. First component must be an alias.
         alias, _, rest = path.partition("/")
         if alias not in self.alias2node:
-            _err("no alias '{}' found -- did you forget the leading '/' in "
-                 "the node path?".format(alias))
+            _err(
+                f"no alias '{alias}' found -- did you forget the leading '/' in the node path?"
+            )
+
 
         return _root_and_path_to_node(self.alias2node[alias], rest, path)
 
@@ -835,9 +825,9 @@ class DT:
             for labels, address, offset in self.memreserves:
                 # List the labels in a consistent order to help with testing
                 for label in labels:
-                    s += label + ": "
+                    s += f"{label}: "
                 s += "/memreserve/ {:#018x} {:#018x};\n" \
-                     .format(address, offset)
+                         .format(address, offset)
             s += "\n"
 
         return s + str(self.root)
@@ -847,8 +837,7 @@ class DT:
         Returns some information about the DT instance. Called automatically if
         the DT instance is evaluated.
         """
-        return "DT(filename='{}', include_path={})" \
-               .format(self.filename, self._include_path)
+        return f"DT(filename='{self.filename}', include_path={self._include_path})"
 
     #
     # Parsing
@@ -1119,8 +1108,7 @@ class DT:
                         # Try again as a signed number, in case it's negative
                         prop.value += num.to_bytes(n_bytes, "big", signed=True)
                     except OverflowError:
-                        self._parse_error("{} does not fit in {} bits"
-                                          .format(num, 8*n_bytes))
+                        self._parse_error(f"{num} does not fit in {8 * n_bytes} bits")
 
     def _parse_bytes(self, prop):
         # Parses '[ ... ]'
@@ -1178,8 +1166,7 @@ class DT:
                     f.seek(offset)
                     prop.value += f.read(size)
         except OSError as e:
-            self._parse_error("could not read '{}': {}"
-                              .format(filename, e))
+            self._parse_error(f"could not read '{filename}': {e}")
 
     def _parse_value_labels(self, prop):
         # _parse_assignment() helper for parsing labels before/after each
@@ -1447,7 +1434,7 @@ class DT:
             # State handling
 
             if tok_id in (_T.DEL_PROP, _T.DEL_NODE, _T.OMIT_IF_NO_REF) or \
-               tok_val in ("{", ";"):
+                   tok_val in ("{", ";"):
 
                 self._lexer_state = _EXPECT_PROPNODENAME
 
@@ -1465,8 +1452,7 @@ class DT:
 
         tok = self._next_token()
         if tok.val != tok_val:
-            self._parse_error("expected '{}', not '{}'"
-                              .format(tok_val, tok.val))
+            self._parse_error(f"expected '{tok_val}', not '{tok.val}'")
 
         return tok
 
@@ -1510,10 +1496,21 @@ class DT:
         # Check for recursive /include/
         for i, parent in enumerate(self._filestack):
             if filename == parent[0]:
-                self._parse_error("recursive /include/:\n" + " ->\n".join(
-                    ["{}:{}".format(parent[0], parent[1])
-                        for parent in self._filestack[i:]] +
-                    [filename]))
+                self._parse_error(
+                    (
+                        "recursive /include/:\n"
+                        + " ->\n".join(
+                            (
+                                [
+                                    f"{parent[0]}:{parent[1]}"
+                                    for parent in self._filestack[i:]
+                                ]
+                                + [filename]
+                            )
+                        )
+                    )
+                )
+
 
         self.filename = f.name
         self._lineno = 1
@@ -1546,7 +1543,7 @@ class DT:
             # Path reference (&{/foo/bar})
             path = s[1:-1]
             if not path.startswith("/"):
-                _err("node path '{}' does not start with '/'".format(path))
+                _err(f"node path '{path}' does not start with '/'")
             # Will raise DTError if the path doesn't exist
             return _root_and_path_to_node(self.root, path, path)
 
@@ -1558,7 +1555,7 @@ class DT:
             if s in node.labels:
                 return node
 
-        _err("undefined node label '{}'".format(s))
+        _err(f"undefined node label '{s}'")
 
     #
     # Post-processing
@@ -1572,11 +1569,12 @@ class DT:
 
         self.phandle2node = {}
         for node in self.node_iter():
-            phandle = node.props.get("phandle")
-            if phandle:
+            if phandle := node.props.get("phandle"):
                 if len(phandle.value) != 4:
-                    _err("{}: bad phandle length ({}), expected 4 bytes"
-                         .format(node.path, len(phandle.value)))
+                    _err(
+                        f"{node.path}: bad phandle length ({len(phandle.value)}), expected 4 bytes"
+                    )
+
 
                 is_self_referential = False
                 for marker in phandle._markers:
@@ -1591,8 +1589,7 @@ class DT:
                             is_self_referential = True
                             break
 
-                        _err("{}: {} refers to another node"
-                             .format(node.path, phandle.name))
+                        _err(f"{node.path}: {phandle.name} refers to another node")
 
                 # Could put on else on the 'for' above too, but keep it
                 # somewhat readable
@@ -1649,7 +1646,7 @@ class DT:
                         try:
                             ref_node = self._ref2node(ref)
                         except DTError as e:
-                            _err("{}: {}".format(prop.node.path, e))
+                            _err(f"{prop.node.path}: {e}")
 
                         # For /omit-if-no-ref/
                         ref_node._is_referenced = True
@@ -1677,12 +1674,13 @@ class DT:
 
         alias_re = re.compile("[0-9a-z-]+$")
 
-        aliases = self.root.nodes.get("aliases")
-        if aliases:
+        if aliases := self.root.nodes.get("aliases"):
             for prop in aliases.props.values():
                 if not alias_re.match(prop.name):
-                    _err("/aliases: alias property name '{}' should include "
-                         "only characters from [0-9a-z-]".format(prop.name))
+                    _err(
+                        f"/aliases: alias property name '{prop.name}' should include only characters from [0-9a-z-]"
+                    )
+
 
                 # Property.to_path() checks that the node exists, has
                 # the right type, etc. Swallow errors for invalid
@@ -1739,21 +1737,20 @@ class DT:
                 strings = []
                 for thing in things:
                     if isinstance(thing, Node):
-                        strings.append("on " + thing.path)
+                        strings.append(f"on {thing.path}")
                     elif isinstance(thing, Property):
-                        strings.append("on property '{}' of node {}"
-                                       .format(thing.name, thing.node.path))
+                        strings.append(f"on property '{thing.name}' of node {thing.node.path}")
                     else:
                         # Label within property value
-                        strings.append("in the value of property '{}' of node {}"
-                                       .format(thing[0].name,
-                                               thing[0].node.path))
+                        strings.append(
+                            f"in the value of property '{thing[0].name}' of node {thing[0].node.path}"
+                        )
+
 
                 # Give consistent error messages to help with testing
                 strings.sort()
 
-                _err("Label '{}' appears ".format(label) +
-                     " and ".join(strings))
+                _err((f"Label '{label}' appears " + " and ".join(strings)))
 
 
     #
@@ -1817,7 +1814,7 @@ class DT:
                         self._parse_error(e)
                     continue
 
-            self._parse_error("'{}' could not be found".format(filename))
+            self._parse_error(f"'{filename}' could not be found")
 
 #
 # Public functions
@@ -1866,8 +1863,7 @@ def to_nums(data: bytes, length: int = 4, signed: bool = False) -> List[int]:
 
 def _check_is_bytes(data):
     if not isinstance(data, bytes):
-        _err("'{}' has type '{}', expected 'bytes'"
-             .format(data, type(data).__name__))
+        _err(f"'{data}' has type '{type(data).__name__}', expected 'bytes'")
 
 def _check_length_positive(length):
     if length < 1:
@@ -1905,8 +1901,7 @@ def _root_and_path_to_node(cur, path, fullpath):
             continue
 
         if component not in cur.nodes:
-            _err("component '{}' in path '{}' does not exist"
-                 .format(component, fullpath))
+            _err(f"component '{component}' in path '{fullpath}' does not exist")
 
         cur = cur.nodes[component]
 

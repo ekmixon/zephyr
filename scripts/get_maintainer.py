@@ -171,13 +171,13 @@ class Maintainers:
             # area._match_fn(path) tests if the path matches files and/or
             # files-regex
             area._match_fn = \
-                _get_match_fn(area_dict.get("files"),
+                    _get_match_fn(area_dict.get("files"),
                               area_dict.get("files-regex"))
 
             # Like area._match_fn(path), but for files-exclude and
             # files-regex-exclude
             area._exclude_match_fn = \
-                _get_match_fn(area_dict.get("files-exclude"),
+                    _get_match_fn(area_dict.get("files-exclude"),
                               area_dict.get("files-regex-exclude"))
 
             self.areas[area_name] = area
@@ -218,7 +218,7 @@ class Maintainers:
         return res
 
     def __repr__(self):
-        return "<Maintainers for '{}'>".format(self.filename)
+        return f"<Maintainers for '{self.filename}'>"
 
     #
     # Command-line subcommands
@@ -229,7 +229,7 @@ class Maintainers:
 
         for path in args.paths:
             if not os.path.exists(path):
-                _serr("'{}': no such file or directory".format(path))
+                _serr(f"'{path}': no such file or directory")
 
         res = set()
         orphaned = []
@@ -255,10 +255,11 @@ class Maintainers:
     def _areas_cmd(self, args):
         # 'areas' subcommand implementation
         for area in self.areas.values():
-            if args.maintainer:
-                if args.maintainer in area.maintainers:
-                    print("{:25}\t{}".format(area.name, ",".join(area.maintainers)))
-            else:
+            if (
+                args.maintainer
+                and args.maintainer in area.maintainers
+                or not args.maintainer
+            ):
                 print("{:25}\t{}".format(area.name, ",".join(area.maintainers)))
 
     def _list_cmd(self, args):
@@ -275,8 +276,7 @@ class Maintainers:
             # List all files that appear in the given area
             area = self.areas.get(args.area)
             if area is None:
-                _serr("'{}': no such area defined in '{}'"
-                      .format(args.area, self.filename))
+                _serr(f"'{args.area}': no such area defined in '{self.filename}'")
 
             for path in _ls_files():
                 if area._contains(path):
@@ -286,7 +286,7 @@ class Maintainers:
         # 'orphaned' subcommand implementation
 
         if args.path is not None and not os.path.exists(args.path):
-            _serr("'{}': no such file or directory".format(args.path))
+            _serr(f"'{args.path}': no such file or directory")
 
         for path in _ls_files(args.path):
             for area in self.areas.values():
@@ -331,7 +331,7 @@ class Area:
             (self._exclude_match_fn and self._exclude_match_fn(path))
 
     def __repr__(self):
-        return "<Area {}>".format(self.name)
+        return f"<Area {self.name}>"
 
 
 def _print_areas(areas):
@@ -385,7 +385,7 @@ def _get_match_fn(globs, regexes):
 
         # The glob regexes must anchor to the beginning of the path, since we
         # return search(). (?:) is a non-capturing group.
-        regex += "^(?:{})".format("|".join(glob_regexes))
+        regex += f'^(?:{"|".join(glob_regexes)})'
 
     if regexes:
         if regex:
@@ -404,7 +404,7 @@ def _load_maintainers(path):
         try:
             yaml = load(f, Loader=Loader)
         except YAMLError as e:
-            raise MaintainersError("{}: YAML error: {}".format(path, e))
+            raise MaintainersError(f"{path}: YAML error: {e}")
 
         _check_maintainers(path, yaml)
         return yaml
@@ -505,16 +505,19 @@ def _git(*args):
         git_process = subprocess.Popen(
             git_cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
     except FileNotFoundError:
-        _giterr("git executable not found (when running '{}'). Check that "
-                "it's in listed in the PATH environment variable"
-                .format(git_cmd_s))
+        _giterr(
+            f"git executable not found (when running '{git_cmd_s}'). Check that it's in listed in the PATH environment variable"
+        )
+
     except OSError as e:
-        _giterr("error running '{}': {}".format(git_cmd_s, e))
+        _giterr(f"error running '{git_cmd_s}': {e}")
 
     stdout, stderr = git_process.communicate()
     if git_process.returncode:
-        _giterr("error running '{}'\n\nstdout:\n{}\nstderr:\n{}".format(
-            git_cmd_s, stdout.decode("utf-8"), stderr.decode("utf-8")))
+        _giterr(
+            f"""error running '{git_cmd_s}'\n\nstdout:\n{stdout.decode("utf-8")}\nstderr:\n{stderr.decode("utf-8")}"""
+        )
+
 
     return stdout.decode("utf-8").rstrip()
 
@@ -537,7 +540,7 @@ def _giterr(msg):
 def _serr(msg):
     # For reporting errors when get_maintainer.py is run as a script.
     # sys.exit() shouldn't be used otherwise.
-    sys.exit("{}: error: {}".format(sys.argv[0], msg))
+    sys.exit(f"{sys.argv[0]}: error: {msg}")
 
 
 class MaintainersError(Exception):

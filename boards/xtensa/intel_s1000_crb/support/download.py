@@ -25,7 +25,7 @@ def check_arguments():
     If not print usage instruction and exit.
     """
     if len(sys.argv) != 2:
-        print('Usage: python3 %s <zephyr.bin>' % sys.argv[0])
+        print(f'Usage: python3 {sys.argv[0]} <zephyr.bin>')
         sys.exit()
     return sys.argv[1]
 
@@ -57,7 +57,7 @@ def calc_firmware_sha(file):
                     % (os.path.basename(file), size - padding, size))
         else:
             print('Firmware file size: %d bytes.' % size)
-        print('SHA: ' + sha256.hexdigest())
+        print(f'SHA: {sha256.hexdigest()}')
         return (size, padding, sha256.digest())
 
 def setup_device():

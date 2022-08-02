@@ -87,13 +87,11 @@ def show_latest():
     ver = item_compat.get("version")
     date = item_compat.get("date", False)
     is_weekly = item_compat.get('weekly')
-    datestr = ""
-    if date:
-        datestr = f"published on {date}"
+    datestr = f"published on {date}" if date else ""
     if args.verbose:
         print(f"Latest version is {ver} {datestr}")
-    if args.verbose and is_weekly:
-        print("This version is marked for weekly testing.")
+        if is_weekly:
+            print("This version is marked for weekly testing.")
 
     if not args.verbose:
         print(f"{ver}")
@@ -107,13 +105,19 @@ def update(git_tree, is_weekly=False):
     data = get_versions()
 
     if not is_weekly:
-        wday = datetime.today().strftime('%A')
+        wday = datetime.now().strftime('%A')
         if wday == 'Monday':
             is_weekly = True
 
-    found = list(filter(lambda item: (isinstance(item, dict) and
-                        item.get('version') == version) or item == version, data))
-    if found:
+    if found := list(
+        filter(
+            lambda item: (
+                isinstance(item, dict) and item.get('version') == version
+            )
+            or item == version,
+            data,
+        )
+    ):
         published = True
         print("version already published")
     else:

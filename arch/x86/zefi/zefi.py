@@ -64,36 +64,30 @@ def build_elf(elf_file):
 
     verbose(f"{len(data_blob)} bytes of data to include in image")
 
-    #
-    # Emit a C header containing the metadata
-    #
-    cf = open("zefi-segments.h", "w")
+    with open("zefi-segments.h", "w") as cf:
+        cf.write("/* GENERATED CODE.  DO NOT EDIT. */\n\n")
 
-    cf.write("/* GENERATED CODE.  DO NOT EDIT. */\n\n")
+        cf.write("/* Sizes and offsets specified in 4-byte units.\n")
+        cf.write(" * All addresses 4-byte aligned.\n")
+        cf.write(" */\n")
 
-    cf.write("/* Sizes and offsets specified in 4-byte units.\n")
-    cf.write(" * All addresses 4-byte aligned.\n")
-    cf.write(" */\n")
+        cf.write("struct data_seg { uint64_t addr; uint32_t sz; uint32_t off; };\n\n")
 
-    cf.write("struct data_seg { uint64_t addr; uint32_t sz; uint32_t off; };\n\n")
+        cf.write("static struct data_seg zefi_dsegs[] = {\n")
+        for s in data_segs:
+            cf.write("    { 0x%x, %d, %d },\n"
+                    % (s[0], s[1], s[2]))
+        cf.write("};\n\n")
 
-    cf.write("static struct data_seg zefi_dsegs[] = {\n")
-    for s in data_segs:
-        cf.write("    { 0x%x, %d, %d },\n"
-                % (s[0], s[1], s[2]))
-    cf.write("};\n\n")
+        cf.write("struct zero_seg { uint64_t addr; uint32_t sz; };\n\n")
 
-    cf.write("struct zero_seg { uint64_t addr; uint32_t sz; };\n\n")
+        cf.write("static struct zero_seg zefi_zsegs[] = {\n")
+        for s in zero_segs:
+            cf.write("    { 0x%x, %d },\n"
+                    % (s[0], s[1]))
+        cf.write("};\n\n")
 
-    cf.write("static struct zero_seg zefi_zsegs[] = {\n")
-    for s in zero_segs:
-        cf.write("    { 0x%x, %d },\n"
-                % (s[0], s[1]))
-    cf.write("};\n\n")
-
-    cf.write("static uintptr_t zefi_entry = 0x%xUL;\n" % (entry_addr))
-
-    cf.close()
+        cf.write("static uintptr_t zefi_entry = 0x%xUL;\n" % (entry_addr))
 
     verbose("Metadata header generated.")
 
@@ -118,10 +112,8 @@ def build_elf(elf_file):
     subprocess.run(cmd, check = True)
 
     assert (os.stat("data.dat").st_size % 8) == 0
-    df = open("data.dat", "ab")
-    df.write(data_blob)
-    df.close()
-
+    with open("data.dat", "ab") as df:
+        df.write(data_blob)
     # FIXME: this generates warnings about our unused trash section having to be moved to make room.  Set its address far away...
     subprocess.run([args.objcopy, "--update-section", ".data=data.dat",
                     "zefi.elf"], check = True)

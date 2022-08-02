@@ -31,9 +31,7 @@ def parse_args():
     parser.add_argument('-t', '--trigger-file', required=False,
                         help='Trigger file to be be touched to re-run CMake')
 
-    args = parser.parse_args()
-
-    return args
+    return parser.parse_args()
 
 
 def get_subfolder_list(directory, create_links=None):
@@ -57,7 +55,7 @@ def get_subfolder_list(directory, create_links=None):
             if create_links is not None:
                 targetdirectory = os.path.join(root, subdir)
                 reldir = os.path.relpath(targetdirectory, directory)
-                linkname = symbase + '_' + reldir.replace(os.path.sep, '_')
+                linkname = f'{symbase}_' + reldir.replace(os.path.sep, '_')
                 symlink = create_links + os.path.sep + linkname
                 if not os.path.exists(symlink):
                     os.symlink(targetdirectory, symlink)

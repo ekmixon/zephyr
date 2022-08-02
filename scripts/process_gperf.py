@@ -28,11 +28,11 @@ from distutils.version import LooseVersion
 def debug(text):
     if not args.verbose:
         return
-    sys.stdout.write(os.path.basename(sys.argv[0]) + ": " + text + "\n")
+    sys.stdout.write(f"{os.path.basename(sys.argv[0])}: {text}" + "\n")
 
 
 def error(text):
-    sys.exit(os.path.basename(sys.argv[0]) + " ERROR: " + text)
+    sys.exit(f"{os.path.basename(sys.argv[0])} ERROR: {text}")
 
 
 def warn(text):
@@ -53,10 +53,7 @@ def reformat_str(match_obj):
     ctr = 7
     i = 0
 
-    while True:
-        if i >= len(addr_str):
-            break
-
+    while i < len(addr_str):
         if addr_str[i] == "\\":
             if addr_str[i + 1].isdigit():
                 # Octal escape sequence
@@ -84,18 +81,16 @@ def process_line(line, fp):
 
     # Set the lookup function to static inline so it gets rolled into
     # z_object_find(), nothing else will use it
-    if re.search(args.pattern + " [*]$", line):
-        fp.write("static inline " + line)
+    if re.search(f"{args.pattern} [*]$", line):
+        fp.write(f"static inline {line}")
         return
 
-    m = re.search("gperf version (.*) [*][/]$", line)
-    if m:
+    if m := re.search("gperf version (.*) [*][/]$", line):
         v = LooseVersion(m.groups()[0])
         v_lo = LooseVersion("3.0")
         v_hi = LooseVersion("3.1")
         if (v < v_lo or v > v_hi):
-            warn("gperf %s is not tested, versions %s through %s supported" %
-                 (v, v_lo, v_hi))
+            warn(f"gperf {v} is not tested, versions {v_lo} through {v_hi} supported")
 
     # Replace length lookups with constant len since we're always
     # looking at pointers
@@ -152,7 +147,7 @@ def main():
     parse_args()
 
     with open(args.input, "r") as in_fp, open(args.output, "w") as out_fp:
-        for line in in_fp.readlines():
+        for line in in_fp:
             process_line(line, out_fp)
 
 
